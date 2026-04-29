@@ -11,27 +11,41 @@
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background: #1a1a1a;
     font-family: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
   }
 
-  /* キャンバスエリア */
-  #canvas {
+  #canvas-wrap {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
+  }
+
+  .page {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
     touch-action: none;
     overflow: hidden;
   }
 
-  /* 背景画像 */
-  #bg-image {
+  .page.active { display: block; }
+
+  .page-bg {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #ddeeff;
+    overflow: hidden;
+  }
+
+  .page-bg img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -39,12 +53,9 @@
     display: none;
   }
 
-  /* 貼り付け画像 */
   .img-item {
     position: absolute;
-    cursor: pointer;
     touch-action: none;
-    transform-origin: center center;
     will-change: transform;
   }
 
@@ -57,182 +68,312 @@
     pointer-events: none;
     -webkit-user-drag: none;
     border: 2px solid transparent;
-    transition: border-color 0.15s;
   }
 
   .img-item.selected img {
-    border-color: rgba(255,255,255,0.6);
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+    border-color: rgba(60,120,220,0.5);
+    box-shadow: 0 0 0 1px rgba(60,120,220,0.2);
   }
 
-  /* UIツールバー */
-  #toolbar {
+  /* 歯車ボタン */
+  #gear-btn {
     position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    background: rgba(30,30,30,0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 20px;
-    padding: 10px 16px;
-    z-index: 1000;
-  }
-
-  .tb-btn {
-    background: rgba(255,255,255,0.1);
-    color: #fff;
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 12px;
-    padding: 8px 14px;
-    font-size: 13px;
-    font-family: inherit;
+    top: 14px;
+    right: 14px;
+    z-index: 2000;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.06);
+    border: none;
     cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    opacity: 0.4;
+    transition: opacity 0.2s, transform 0.35s ease;
     -webkit-tap-highlight-color: transparent;
   }
 
-  .tb-btn:active {
-    background: rgba(255,255,255,0.25);
+  #gear-btn.open {
+    opacity: 0.7;
+    transform: rotate(65deg);
   }
 
-  .tb-divider {
-    width: 1px;
-    height: 28px;
-    background: rgba(255,255,255,0.15);
-  }
+  #gear-btn:active { opacity: 0.85; }
 
-  .tb-btn.danger {
-    border-color: rgba(255,80,80,0.3);
-    color: #ff8080;
-  }
-
-  .tb-btn.danger:active {
-    background: rgba(255,80,80,0.2);
-  }
-
-  /* ファイル入力（非表示） */
-  #bg-input, #img-input {
+  /* 設定パネル */
+  #settings-panel {
+    position: fixed;
+    top: 60px;
+    right: 10px;
+    z-index: 1900;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 16px;
+    padding: 6px 5px;
     display: none;
-  }
-
-  /* 背景なしのプレースホルダー */
-  #placeholder {
-    position: absolute;
-    inset: 0;
-    display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    color: rgba(255,255,255,0.2);
-    font-size: 15px;
-    pointer-events: none;
-    transition: opacity 0.3s;
+    gap: 2px;
+    min-width: 148px;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.1);
   }
 
-  #placeholder .icon {
-    font-size: 48px;
-    opacity: 0.3;
+  #settings-panel.open { display: flex; }
+
+  .sp-btn {
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #222;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s;
   }
+
+  .sp-btn:active { background: rgba(0,0,0,0.07); }
+  .sp-btn.danger { color: #c0392b; }
+
+  .sp-divider {
+    height: 1px;
+    background: rgba(0,0,0,0.07);
+    margin: 2px 4px;
+  }
+
+  /* ページナビ */
+  #nav-prev, #nav-next {
+    position: fixed;
+    bottom: 24px;
+    z-index: 1500;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: rgba(0,0,0,0.16);
+    padding: 14px 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+
+  #nav-prev { left: 2px; }
+  #nav-next { right: 2px; }
+  #nav-prev:active, #nav-next:active { color: rgba(0,0,0,0.45); }
+
+  /* ページインジケーター */
+  #page-indicator {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1500;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.15);
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .dot.active {
+    background: rgba(0,0,0,0.38);
+    transform: scale(1.35);
+  }
+
+  #bg-input, #img-input { display: none; }
 </style>
 </head>
 <body>
 
-<div id="canvas">
-  <img id="bg-image" alt="背景">
-  <div id="placeholder">
-    <div class="icon">🖼️</div>
-    <div>下のボタンから背景・画像を追加できます</div>
-  </div>
+<div id="canvas-wrap"></div>
+
+<button id="gear-btn" onclick="toggleSettings()">⚙️</button>
+
+<div id="settings-panel">
+  <button class="sp-btn" onclick="triggerBg()">🌄　背景を設定</button>
+  <button class="sp-btn" onclick="triggerImg()">➕　画像を追加</button>
+  <div class="sp-divider"></div>
+  <button class="sp-btn danger" onclick="deleteSelected()">🗑️　選択を削除</button>
+  <div class="sp-divider"></div>
+  <button class="sp-btn" onclick="addPage()">📄　ページを追加</button>
 </div>
 
-<div id="toolbar">
-  <button class="tb-btn" onclick="document.getElementById('bg-input').click()">🌄 背景</button>
-  <div class="tb-divider"></div>
-  <button class="tb-btn" onclick="document.getElementById('img-input').click()">➕ 画像</button>
-  <div class="tb-divider"></div>
-  <button class="tb-btn danger" id="delete-btn" onclick="deleteSelected()" style="display:none">🗑️ 削除</button>
-</div>
+<button id="nav-prev" onclick="goPage(-1)">◁</button>
+<button id="nav-next" onclick="goPage(1)">▷</button>
+<div id="page-indicator"></div>
 
 <input type="file" id="bg-input" accept="image/*">
 <input type="file" id="img-input" accept="image/*" multiple>
 
 <script>
-// ========================
-// 状態管理
-// ========================
+let pages = [];
+let currentPage = 0;
 let selectedItem = null;
-const canvas = document.getElementById('canvas');
-const bgImage = document.getElementById('bg-image');
-const placeholder = document.getElementById('placeholder');
-const deleteBtn = document.getElementById('delete-btn');
+let zCounter = 10;
+
+const canvasWrap = document.getElementById('canvas-wrap');
+const indicator = document.getElementById('page-indicator');
+const settingsPanel = document.getElementById('settings-panel');
+const gearBtn = document.getElementById('gear-btn');
 
 // ========================
-// 背景画像
+// ページ管理
 // ========================
+function createPageDOM() {
+  const page = document.createElement('div');
+  page.className = 'page';
+
+  const bg = document.createElement('div');
+  bg.className = 'page-bg';
+
+  const bgImg = document.createElement('img');
+  bgImg.alt = '背景';
+  bg.appendChild(bgImg);
+  page.appendChild(bg);
+
+  // 背景タップで選択解除
+  page.addEventListener('touchstart', (e) => {
+    if (e.target === page || e.target === bg || e.target === bgImg) {
+      deselectAll();
+    }
+  }, { passive: false });
+
+  canvasWrap.appendChild(page);
+  return page;
+}
+
+function addPage() {
+  const dom = createPageDOM();
+  pages.push({ dom });
+  switchPage(pages.length - 1);
+  updateIndicator();
+  closeSettings();
+}
+
+function switchPage(index) {
+  pages.forEach((p, i) => {
+    p.dom.classList.toggle('active', i === index);
+  });
+  currentPage = index;
+  deselectAll();
+  updateIndicator();
+}
+
+function goPage(dir) {
+  const next = currentPage + dir;
+  if (next < 0 || next >= pages.length) return;
+  switchPage(next);
+}
+
+function updateIndicator() {
+  indicator.innerHTML = '';
+  pages.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === currentPage ? ' active' : '');
+    indicator.appendChild(dot);
+  });
+}
+
+addPage(); // 初期ページ
+
+// ========================
+// 設定パネル
+// ========================
+function toggleSettings() {
+  const open = settingsPanel.classList.toggle('open');
+  gearBtn.classList.toggle('open', open);
+}
+
+function closeSettings() {
+  settingsPanel.classList.remove('open');
+  gearBtn.classList.remove('open');
+}
+
+document.addEventListener('touchstart', (e) => {
+  if (!settingsPanel.contains(e.target) && e.target !== gearBtn) {
+    closeSettings();
+  }
+}, { passive: true });
+
+// ========================
+// 背景
+// ========================
+function triggerBg() {
+  document.getElementById('bg-input').click();
+  closeSettings();
+}
+
 document.getElementById('bg-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  const url = URL.createObjectURL(file);
-  bgImage.src = url;
-  bgImage.style.display = 'block';
-  placeholder.style.opacity = '0';
+  const bgImg = pages[currentPage].dom.querySelector('.page-bg img');
+  bgImg.src = URL.createObjectURL(file);
+  bgImg.style.display = 'block';
   e.target.value = '';
 });
 
 // ========================
 // 画像追加
 // ========================
+function triggerImg() {
+  document.getElementById('img-input').click();
+  closeSettings();
+}
+
 document.getElementById('img-input').addEventListener('change', (e) => {
-  const files = Array.from(e.target.files);
-  files.forEach((file, i) => {
+  Array.from(e.target.files).forEach((file, i) => {
     setTimeout(() => addImageItem(file), i * 50);
   });
   e.target.value = '';
 });
 
 function addImageItem(file) {
-  const url = URL.createObjectURL(file);
   const item = document.createElement('div');
   item.className = 'img-item';
 
   const img = document.createElement('img');
-  img.src = url;
+  img.src = URL.createObjectURL(file);
+
+  const state = { x: 100, y: 100, scale: 1, rotate: 0 };
+  item._state = state;
+
   img.onload = () => {
-    // 中央付近にランダム配置
-    const cx = canvas.clientWidth / 2 + (Math.random() - 0.5) * 120;
-    const cy = canvas.clientHeight / 2 + (Math.random() - 0.5) * 120;
-    state.x = cx - img.naturalWidth * 0.15;
-    state.y = cy - img.naturalHeight * 0.15;
+    const page = pages[currentPage].dom;
+    const cx = page.clientWidth / 2 + (Math.random() - 0.5) * 100;
+    const cy = page.clientHeight / 2 + (Math.random() - 0.5) * 100;
+    state.x = cx - Math.min(img.naturalWidth, 300) / 2;
+    state.y = cy - Math.min(img.naturalHeight, 300) / 2;
     applyTransform(item, state);
   };
 
   item.appendChild(img);
-  canvas.appendChild(item);
-
-  // 各アイテムの変換状態
-  const state = { x: 100, y: 100, scale: 1, rotate: 0 };
-  item._state = state;
-
+  pages[currentPage].dom.appendChild(item);
   attachTouchHandlers(item, state);
   selectItem(item);
 }
 
 // ========================
-// 変換適用
+// 変換
 // ========================
 function applyTransform(el, s) {
   el.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rotate}deg) scale(${s.scale})`;
 }
 
 // ========================
-// 選択
+// 選択・削除
 // ========================
 function selectItem(item) {
   if (selectedItem && selectedItem !== item) {
@@ -240,8 +381,7 @@ function selectItem(item) {
   }
   selectedItem = item;
   item.classList.add('selected');
-  item.style.zIndex = getNextZ();
-  deleteBtn.style.display = '';
+  item.style.zIndex = ++zCounter;
 }
 
 function deselectAll() {
@@ -249,54 +389,33 @@ function deselectAll() {
     selectedItem.classList.remove('selected');
     selectedItem = null;
   }
-  deleteBtn.style.display = 'none';
 }
 
-let zCounter = 10;
-function getNextZ() {
-  return ++zCounter;
-}
-
-// キャンバス背景タップで選択解除
-canvas.addEventListener('touchstart', (e) => {
-  if (e.target === canvas || e.target === bgImage) {
-    deselectAll();
-  }
-}, { passive: false });
-
-// ========================
-// 削除
-// ========================
 function deleteSelected() {
   if (!selectedItem) return;
-  canvas.removeChild(selectedItem);
+  selectedItem.parentNode.removeChild(selectedItem);
   selectedItem = null;
-  deleteBtn.style.display = 'none';
+  closeSettings();
 }
 
 // ========================
-// タッチ処理（移動・ピンチ・回転）
+// タッチ処理
 // ========================
 function attachTouchHandlers(el, state) {
-  let touches = {};       // 現在のタッチ情報
-  let lastDist = null;    // ピンチ距離
-  let lastAngle = null;   // 回転角度
-  let lastMidX = null;    // 中点X
-  let lastMidY = null;    // 中点Y
-  let lastTap = 0;        // ダブルタップ検出用
+  let touches = {};
+  let lastDist = null;
+  let lastAngle = null;
+  let lastMidX = null;
+  let lastMidY = null;
+  let lastTap = 0;
 
   el.addEventListener('touchstart', (e) => {
     e.preventDefault();
     e.stopPropagation();
     selectItem(el);
-    el.style.zIndex = getNextZ();
 
-    // ダブルタップ無効化
     const now = Date.now();
-    if (now - lastTap < 300) {
-      lastTap = 0;
-      return;
-    }
+    if (now - lastTap < 300) { lastTap = 0; return; }
     lastTap = now;
 
     Array.from(e.changedTouches).forEach(t => {
@@ -304,10 +423,10 @@ function attachTouchHandlers(el, state) {
     });
 
     const ids = Object.keys(touches);
-    if (ids.length === 2) {
-      const [a, b] = ids.map(id => touches[id]);
-      lastDist = dist(a, b);
-      lastAngle = angle(a, b);
+    if (ids.length >= 2) {
+      const [a, b] = ids.slice(0, 2).map(id => touches[id]);
+      lastDist = vDist(a, b);
+      lastAngle = vAngle(a, b);
       lastMidX = (a.x + b.x) / 2;
       lastMidY = (a.y + b.y) / 2;
     }
@@ -317,6 +436,9 @@ function attachTouchHandlers(el, state) {
     e.preventDefault();
     e.stopPropagation();
 
+    const prevPositions = {};
+    Object.keys(touches).forEach(id => { prevPositions[id] = { ...touches[id] }; });
+
     Array.from(e.changedTouches).forEach(t => {
       touches[t.identifier] = { x: t.clientX, y: t.clientY };
     });
@@ -324,33 +446,25 @@ function attachTouchHandlers(el, state) {
     const ids = Object.keys(touches);
 
     if (ids.length === 1) {
-      // 1本指：移動
-      const t = e.changedTouches[0];
-      const prev = touches[t.identifier];
-      // changedTouchesの前回値と比較するため直前の値を保持
-      const prevPos = el._prevTouch;
-      if (prevPos) {
-        const dx = t.clientX - prevPos.x;
-        const dy = t.clientY - prevPos.y;
-        state.x += dx;
-        state.y += dy;
+      const id = ids[0];
+      const prev = prevPositions[id];
+      const cur = touches[id];
+      if (prev) {
+        state.x += cur.x - prev.x;
+        state.y += cur.y - prev.y;
       }
-      el._prevTouch = { x: t.clientX, y: t.clientY };
-    } else if (ids.length === 2) {
-      // 2本指：ピンチ＋回転
-      const [a, b] = ids.map(id => touches[id]);
-      const curDist = dist(a, b);
-      const curAngle = angle(a, b);
+    } else if (ids.length >= 2) {
+      const [a, b] = ids.slice(0, 2).map(id => touches[id]);
+      const curDist = vDist(a, b);
+      const curAngle = vAngle(a, b);
       const curMidX = (a.x + b.x) / 2;
       const curMidY = (a.y + b.y) / 2;
 
       if (lastDist !== null) {
-        const scaleDelta = curDist / lastDist;
-        state.scale = Math.max(0.1, Math.min(10, state.scale * scaleDelta));
+        state.scale = Math.max(0.1, Math.min(10, state.scale * (curDist / lastDist)));
       }
       if (lastAngle !== null) {
-        const angleDelta = curAngle - lastAngle;
-        state.rotate += angleDelta;
+        state.rotate += curAngle - lastAngle;
       }
       if (lastMidX !== null) {
         state.x += curMidX - lastMidX;
@@ -368,46 +482,29 @@ function attachTouchHandlers(el, state) {
 
   el.addEventListener('touchend', (e) => {
     e.preventDefault();
-    Array.from(e.changedTouches).forEach(t => {
-      delete touches[t.identifier];
-    });
-    el._prevTouch = null;
+    Array.from(e.changedTouches).forEach(t => { delete touches[t.identifier]; });
 
     const ids = Object.keys(touches);
     if (ids.length < 2) {
-      lastDist = null;
-      lastAngle = null;
-      lastMidX = null;
-      lastMidY = null;
-    }
-    if (ids.length === 1) {
-      const id = ids[0];
-      el._prevTouch = { x: touches[id].x, y: touches[id].y };
+      lastDist = null; lastAngle = null;
+      lastMidX = null; lastMidY = null;
     }
   }, { passive: false });
 }
 
-// ========================
-// ユーティリティ
-// ========================
-function dist(a, b) {
-  return Math.hypot(b.x - a.x, b.y - a.y);
-}
+function vDist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+function vAngle(a, b) { return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; }
 
-function angle(a, b) {
-  return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
-}
-
-// ブラウザのダブルタップズーム完全無効化
+// ダブルタップズーム無効化
 document.addEventListener('touchstart', (e) => {
   if (e.touches.length > 1) e.preventDefault();
 }, { passive: false });
 
-let lastTouch = 0;
+let lastDocTouch = 0;
 document.addEventListener('touchend', (e) => {
   const now = Date.now();
-  if (now - lastTouch < 300) e.preventDefault();
-  lastTouch = now;
+  if (now - lastDocTouch < 300) e.preventDefault();
+  lastDocTouch = now;
 }, { passive: false });
 </script>
 </body>
