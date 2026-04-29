@@ -11,7 +11,8 @@
         html, body {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; background-color: #e0e0e0;
-            touch-action: none; -webkit-touch-callout: none;
+            touch-action: none;
+            -webkit-touch-callout: none;
             -webkit-user-select: none; user-select: none;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
@@ -23,69 +24,73 @@
         #canvas-container {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
         }
-        .canvas-item {
-            position: absolute; top: 0; left: 0; transform-origin: center center;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3); border-radius: 8px;
-        }
 
-        /* 選択枠（PCのみ表示） */
+        /* 共通 wrapper */
         .item-wrapper {
             position: absolute; top: 0; left: 0;
             transform-origin: center center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            touch-action: none;
         }
-        .item-wrapper.selected .selection-border {
+        .item-wrapper img.item-img {
             display: block;
+            border-radius: 8px;
+            pointer-events: none;
+            -webkit-user-drag: none;
+            width: 100%;
+            height: 100%;
         }
-        .item-wrapper.selected .rotate-handle {
-            display: flex;
-        }
+
         .selection-border {
             display: none;
             position: absolute; inset: -10px;
-            border: 2px dashed rgba(0, 122, 255, 0.8);
+            border: 2px dashed rgba(0,122,255,0.8);
             border-radius: 10px;
             pointer-events: none;
         }
-        /* 四隅の回転ハンドル */
+        .item-wrapper.selected .selection-border { display: block; }
+        .item-wrapper.selected .rotate-handle   { display: flex; }
+
         .rotate-handle {
             display: none;
             position: absolute;
-            width: 22px; height: 22px;
+            width: 28px; height: 28px;
             background: #007aff;
             border: 2px solid #fff;
             border-radius: 50%;
-            cursor: grab;
-            justify-content: center;
-            align-items: center;
-            font-size: 11px;
-            color: #fff;
-            z-index: 10;
+            justify-content: center; align-items: center;
+            font-size: 14px; color: #fff;
+            cursor: crosshair;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+            user-select: none;
+            z-index: 20;
             touch-action: none;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
-        .rotate-handle:active { cursor: grabbing; }
-        .rotate-handle.tl { top: -18px;  left: -18px; }
-        .rotate-handle.tr { top: -18px;  right: -18px; }
-        .rotate-handle.bl { bottom: -18px; left: -18px; }
-        .rotate-handle.br { bottom: -18px; right: -18px; }
+        .rotate-handle.tl { top: -16px;    left: -16px; }
+        .rotate-handle.tr { top: -16px;    right: -16px; }
+        .rotate-handle.bl { bottom: -16px; left: -16px; }
+        .rotate-handle.br { bottom: -16px; right: -16px; }
 
         .nav-btn {
             position: absolute; bottom: 20px; font-size: 40px;
             color: rgba(0,0,0,0.4); background: transparent;
             width: 50px; height: 50px; display: flex;
             justify-content: center; align-items: center;
-            z-index: 9999; cursor: pointer; touch-action: manipulation; user-select: none;
+            z-index: 9999; cursor: pointer; touch-action: manipulation;
         }
         .nav-btn:active { color: rgba(0,0,0,0.8); }
         .nav-btn.left { left: 20px; }
         .nav-btn.right { right: 20px; }
         .nav-btn.disabled { opacity: 0.1; pointer-events: none; }
+
         .settings-btn {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             font-size: 40px; color: #000; opacity: 0.15;
-            z-index: 9999; cursor: pointer; touch-action: manipulation; user-select: none;
+            z-index: 9999; cursor: pointer; touch-action: manipulation;
         }
         .settings-btn:active { opacity: 0.4; }
+
         #settings-modal {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.4); z-index: 10000;
@@ -98,12 +103,12 @@
         }
         .modal-content button {
             padding: 16px; font-size: 18px; font-weight: bold; color: #fff;
-            background-color: #007aff; border: none; border-radius: 12px;
-            cursor: pointer; touch-action: manipulation;
+            background-color: #007aff; border: none; border-radius: 12px; cursor: pointer;
         }
         .modal-content button:active { background-color: #005bb5; }
         .modal-content button.close-btn { background-color: #8e8e93; }
         .modal-content button.close-btn:active { background-color: #636366; }
+
         .hidden-input { display: none; }
     </style>
 </head>
@@ -121,439 +126,380 @@
         </div>
     </div>
 
-    <input type="file" id="input-bg" class="hidden-input" accept="image/*">
+    <input type="file" id="input-bg"  class="hidden-input" accept="image/*">
     <input type="file" id="input-add" class="hidden-input" accept="image/*" multiple>
     <div id="background"></div>
     <div id="canvas-container"></div>
 
-    <script>
-        // タッチデバイス判定
-        const IS_TOUCH = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+<script>
+// =====================================================
+// デバイス判定
+// =====================================================
+var IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
-        const appState = {
-            pages: [{ id: 'page-1', background: null, items: [] }],
-            currentPageIndex: 0
+// =====================================================
+// 状態
+// =====================================================
+var appState = {
+    pages: [{ id: 'page-1', background: null, items: [] }],
+    currentPageIndex: 0
+};
+var zIndexCounter = 10;
+var placementOffset = 0;
+
+// =====================================================
+// UI イベント（モーダル・ページ切り替え）
+// =====================================================
+var modal = document.getElementById('settings-modal');
+document.getElementById('btn-settings').addEventListener('click', function() {
+    modal.style.display = 'flex';
+});
+document.getElementById('btn-close-modal').addEventListener('click', function() {
+    modal.style.display = 'none';
+});
+document.getElementById('btn-bg').addEventListener('click', function() {
+    document.getElementById('input-bg').click();
+    modal.style.display = 'none';
+});
+document.getElementById('btn-add').addEventListener('click', function() {
+    document.getElementById('input-add').click();
+    modal.style.display = 'none';
+});
+document.getElementById('btn-add-page').addEventListener('click', function() {
+    appState.pages.push({ id: 'page-' + (appState.pages.length + 1), background: null, items: [] });
+    appState.currentPageIndex = appState.pages.length - 1;
+    renderPage();
+    modal.style.display = 'none';
+});
+document.getElementById('btn-prev').addEventListener('click', function() {
+    if (appState.currentPageIndex > 0) { appState.currentPageIndex--; renderPage(); }
+});
+document.getElementById('btn-next').addEventListener('click', function() {
+    if (appState.currentPageIndex < appState.pages.length - 1) { appState.currentPageIndex++; renderPage(); }
+});
+
+// 背景クリックで選択解除（PC）
+document.getElementById('canvas-container').addEventListener('pointerdown', function(e) {
+    if (IS_TOUCH) return;
+    if (e.target === document.getElementById('canvas-container')) deselectAll();
+});
+
+// =====================================================
+// 画像読み込み
+// =====================================================
+document.getElementById('input-bg').addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+        var url = ev.target.result;
+        document.getElementById('background').style.backgroundImage = "url('" + url + "')";
+        appState.pages[appState.currentPageIndex].background = url;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+});
+
+document.getElementById('input-add').addEventListener('change', function(e) {
+    var files = Array.from(e.target.files);
+    files.forEach(function(file) {
+        var myOffset = placementOffset;
+        placementOffset += 30;
+        if (placementOffset > 100) placementOffset = -50;
+
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+            createItemFromSrc(ev.target.result, myOffset);
         };
+        reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+});
 
-        let zIndexCounter = 10;
-        let placementOffset = 0;
-        let selectedWrapperId = null; // PC用：現在選択中のwrapper ID
+// =====================================================
+// アイテム作成
+// 戦略: 先に Image オブジェクトでサイズ取得 → DOM構築 → interactバインド
+// =====================================================
+function createItemFromSrc(src, offset) {
+    var probe = new Image();
+    probe.onload = function() {
+        var nw = probe.naturalWidth;
+        var nh = probe.naturalHeight;
+        if (!nw || !nh) return;
 
-        // ==========================================
-        // モーダル・ページ切り替えイベント
-        // ==========================================
-        const modal = document.getElementById('settings-modal');
-        document.getElementById('btn-settings').addEventListener('click', () => { modal.style.display = 'flex'; });
-        document.getElementById('btn-close-modal').addEventListener('click', () => { modal.style.display = 'none'; });
-        document.getElementById('btn-bg').addEventListener('click', () => {
-            document.getElementById('input-bg').click();
-            modal.style.display = 'none';
-        });
-        document.getElementById('btn-add').addEventListener('click', () => {
-            document.getElementById('input-add').click();
-            modal.style.display = 'none';
-        });
-        document.getElementById('btn-add-page').addEventListener('click', () => {
-            appState.pages.push({ id: 'page-' + (appState.pages.length + 1), background: null, items: [] });
-            appState.currentPageIndex = appState.pages.length - 1;
-            renderPage();
-            modal.style.display = 'none';
-        });
-        document.getElementById('btn-prev').addEventListener('click', () => {
-            if (appState.currentPageIndex > 0) { appState.currentPageIndex--; renderPage(); }
-        });
-        document.getElementById('btn-next').addEventListener('click', () => {
-            if (appState.currentPageIndex < appState.pages.length - 1) { appState.currentPageIndex++; renderPage(); }
-        });
+        // 配置計算
+        var maxW = window.innerWidth  * 0.4;
+        var maxH = window.innerHeight * 0.4;
+        var scale = 1;
+        if (nw > maxW || nh > maxH) scale = Math.min(maxW / nw, maxH / nh);
+        var dispW = nw * scale;
+        var dispH = nh * scale;
+        var x = (window.innerWidth  - dispW) / 2 + offset;
+        var y = (window.innerHeight - dispH) / 2 + offset;
 
-        // キャンバス背景クリックで選択解除（PCのみ）
-        document.getElementById('canvas-container').addEventListener('mousedown', (e) => {
-            if (!IS_TOUCH && e.target === document.getElementById('canvas-container')) {
-                deselectAll();
+        // 状態作成
+        var id = 'item_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+        zIndexCounter++;
+        var itemData = {
+            id: id, src: src,
+            x: x, y: y,
+            scale: scale, angle: 0,
+            zIndex: zIndexCounter,
+            naturalWidth: nw, naturalHeight: nh
+        };
+        appState.pages[appState.currentPageIndex].items.push(itemData);
+
+        // DOM 構築
+        var wrapper = buildWrapperDOM(itemData);
+        document.getElementById('canvas-container').appendChild(wrapper);
+
+        // interact.js バインド
+        bindInteractToWrapper(wrapper);
+
+        // 追加直後はPCでは選択状態に
+        if (!IS_TOUCH) selectWrapper(wrapper);
+    };
+    probe.onerror = function() { console.warn('image load error'); };
+    probe.src = src;
+}
+
+// =====================================================
+// ページ再描画
+// =====================================================
+function renderPage() {
+    var page = appState.pages[appState.currentPageIndex];
+    document.getElementById('background').style.backgroundImage =
+        page.background ? "url('" + page.background + "')" : 'none';
+    document.getElementById('canvas-container').innerHTML = '';
+
+    page.items.forEach(function(d) {
+        var wrapper = buildWrapperDOM(d);
+        document.getElementById('canvas-container').appendChild(wrapper);
+        bindInteractToWrapper(wrapper);
+    });
+
+    document.getElementById('btn-prev').classList.toggle('disabled', appState.currentPageIndex === 0);
+    document.getElementById('btn-next').classList.toggle('disabled', appState.currentPageIndex >= appState.pages.length - 1);
+}
+
+// =====================================================
+// DOM 構築
+// =====================================================
+function buildWrapperDOM(d) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'item-wrapper';
+    wrapper.id = 'wrapper_' + d.id;
+    wrapper.style.zIndex = d.zIndex;
+    // wrapper のサイズは画像実寸に固定
+    wrapper.style.width  = d.naturalWidth  + 'px';
+    wrapper.style.height = d.naturalHeight + 'px';
+    wrapper.dataset.itemId = d.id;
+    wrapper.dataset.x = d.x;
+    wrapper.dataset.y = d.y;
+    wrapper.dataset.scale = d.scale;
+    wrapper.dataset.angle = d.angle;
+
+    // PCのみハンドル（先に追加）
+    if (!IS_TOUCH) {
+        ['tl','tr','bl','br'].forEach(function(c) {
+            var h = document.createElement('div');
+            h.className = 'rotate-handle ' + c;
+            h.textContent = '↻';
+            wrapper.appendChild(h);
+        });
+        var border = document.createElement('div');
+        border.className = 'selection-border';
+        wrapper.appendChild(border);
+    }
+
+    var img = document.createElement('img');
+    img.className = 'item-img';
+    img.src = d.src;
+    wrapper.appendChild(img);
+
+    applyTransform(wrapper);
+    return wrapper;
+}
+
+// =====================================================
+// interact.js バインド
+// =====================================================
+function bindInteractToWrapper(wrapper) {
+    if (IS_TOUCH) {
+        bindTouchInteract(wrapper);
+    } else {
+        bindPCInteract(wrapper);
+    }
+}
+
+function bindTouchInteract(wrapper) {
+    interact(wrapper)
+        .draggable({
+            inertia: false,
+            listeners: {
+                start: function(ev) { bringToFront(ev.target); },
+                move: function(ev) {
+                    var t = ev.target;
+                    var x = (parseFloat(t.dataset.x) || 0) + ev.dx;
+                    var y = (parseFloat(t.dataset.y) || 0) + ev.dy;
+                    t.dataset.x = x;
+                    t.dataset.y = y;
+                    applyTransform(t);
+                    updateState(t.dataset.itemId, { x: x, y: y });
+                }
             }
-        });
-
-        // ==========================================
-        // 描画
-        // ==========================================
-        function renderPage() {
-            const page = appState.pages[appState.currentPageIndex];
-            document.getElementById('background').style.backgroundImage =
-                page.background ? `url('${page.background}')` : 'none';
-            document.getElementById('canvas-container').innerHTML = '';
-            selectedWrapperId = null;
-            page.items.forEach(itemData => renderItem(itemData));
-            document.getElementById('btn-prev').classList.toggle('disabled', appState.currentPageIndex === 0);
-            document.getElementById('btn-next').classList.toggle('disabled', appState.currentPageIndex >= appState.pages.length - 1);
-        }
-
-        function renderItem(itemData) {
-            if (IS_TOUCH) {
-                // iPad: 従来どおり img 直置き
-                const imgEl = document.createElement('img');
-                imgEl.className = 'canvas-item';
-                imgEl.id = itemData.id;
-                imgEl.style.zIndex = itemData.zIndex;
-                imgEl.setAttribute('data-x', itemData.x);
-                imgEl.setAttribute('data-y', itemData.y);
-                imgEl.setAttribute('data-scale', itemData.scale);
-                imgEl.setAttribute('data-angle', itemData.angle);
-                updateTransform(imgEl);
-                document.getElementById('canvas-container').appendChild(imgEl);
-                imgEl.src = itemData.src;
-            } else {
-                // PC: wrapper でラップ
-                const wrapper = document.createElement('div');
-                wrapper.className = 'item-wrapper';
-                wrapper.id = 'wrapper_' + itemData.id;
-                wrapper.style.zIndex = itemData.zIndex;
-                wrapper.setAttribute('data-x', itemData.x);
-                wrapper.setAttribute('data-y', itemData.y);
-                wrapper.setAttribute('data-scale', itemData.scale);
-                wrapper.setAttribute('data-angle', itemData.angle);
-                wrapper.setAttribute('data-item-id', itemData.id);
-
-                const imgEl = document.createElement('img');
-                imgEl.className = 'canvas-item';
-                imgEl.id = itemData.id;
-                imgEl.style.position = 'relative';
-                imgEl.style.boxShadow = 'none'; // wrapper側で管理
-                imgEl.style.transform = 'none';
-
-                const border = document.createElement('div');
-                border.className = 'selection-border';
-
-                // 四隅ハンドル
-                ['tl','tr','bl','br'].forEach(corner => {
-                    const handle = document.createElement('div');
-                    handle.className = 'rotate-handle ' + corner;
-                    handle.textContent = '↻';
-                    handle.setAttribute('data-corner', corner);
-                    attachRotateHandle(handle, wrapper);
-                    wrapper.appendChild(handle);
-                });
-
-                wrapper.appendChild(imgEl);
-                wrapper.appendChild(border);
-                updateTransform(wrapper);
-
-                // クリックで選択
-                wrapper.addEventListener('mousedown', (e) => {
-                    if (!e.target.classList.contains('rotate-handle')) {
-                        selectWrapper(wrapper);
-                    }
-                });
-
-                document.getElementById('canvas-container').appendChild(wrapper);
-                imgEl.src = itemData.src;
-
-                // img サイズ確定後に wrapper サイズを合わせる
-                imgEl.addEventListener('load', () => {
-                    wrapper.style.width = imgEl.offsetWidth + 'px';
-                    wrapper.style.height = imgEl.offsetHeight + 'px';
-                });
+        })
+        .gesturable({
+            listeners: {
+                start: function(ev) {
+                    bringToFront(ev.target);
+                    ev.target.dataset.startScale = ev.target.dataset.scale || 1;
+                },
+                move: function(ev) {
+                    var t = ev.target;
+                    var angle = (parseFloat(t.dataset.angle) || 0) + ev.da;
+                    var scale = (parseFloat(t.dataset.startScale) || 1) * ev.scale;
+                    scale = Math.max(0.1, Math.min(scale, 5.0));
+                    t.dataset.angle = angle;
+                    t.dataset.scale = scale;
+                    applyTransform(t);
+                    updateState(t.dataset.itemId, { angle: angle, scale: scale });
+                }
             }
-        }
+        })
+        .on('down', function(ev) { bringToFront(ev.currentTarget); });
+}
 
-        // ==========================================
-        // PC用：選択管理
-        // ==========================================
-        function selectWrapper(wrapper) {
-            deselectAll();
-            wrapper.classList.add('selected');
-            selectedWrapperId = wrapper.id;
-            bringToFront(wrapper);
-        }
-
-        function deselectAll() {
-            document.querySelectorAll('.item-wrapper.selected').forEach(el => {
-                el.classList.remove('selected');
-            });
-            selectedWrapperId = null;
-        }
-
-        // ==========================================
-        // PC用：四隅ハンドルで回転
-        // ==========================================
-        function attachRotateHandle(handle, wrapper) {
-            let startAngle = 0;
-            let startMouseAngle = 0;
-
-            handle.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-
-                startAngle = parseFloat(wrapper.getAttribute('data-angle')) || 0;
-
-                // wrapper の中心座標
-                const rect = wrapper.getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-
-                // マウス開始角度
-                startMouseAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI);
-
-                const onMove = (e) => {
-                    const rect = wrapper.getBoundingClientRect();
-                    const cx = rect.left + rect.width / 2;
-                    const cy = rect.top + rect.height / 2;
-                    const currentMouseAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI);
-                    const delta = currentMouseAngle - startMouseAngle;
-                    const newAngle = startAngle + delta;
-                    wrapper.setAttribute('data-angle', newAngle);
-                    updateTransform(wrapper);
-                    updateState(wrapper.getAttribute('data-item-id'), { angle: newAngle });
-                };
-
-                const onUp = () => {
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                };
-
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
-            });
-        }
-
-        // ==========================================
-        // PC用：ホイールで拡大縮小
-        // ==========================================
-        document.getElementById('canvas-container').addEventListener('wheel', (e) => {
-            if (IS_TOUCH) return;
-            e.preventDefault();
-
-            // ホイールが乗っている wrapper を探す
-            const target = e.target.closest('.item-wrapper');
-            if (!target) return;
-
-            const currentScale = parseFloat(target.getAttribute('data-scale')) || 1;
-            const delta = e.deltaY < 0 ? 1.05 : 0.95; // 上スクロール→拡大、下→縮小
-            const newScale = Math.max(0.1, Math.min(currentScale * delta, 5.0));
-
-            target.setAttribute('data-scale', newScale);
-            updateTransform(target);
-            updateState(target.getAttribute('data-item-id'), { scale: newScale });
-        }, { passive: false });
-
-        // ==========================================
-        // interact.js（移動 + iPadのピンチ回転）
-        // ==========================================
-        if (IS_TOUCH) {
-            // iPad: img 直接操作
-            interact('.canvas-item')
-                .draggable({
-                    listeners: {
-                        start(event) { bringToFront(event.target); },
-                        move(event) {
-                            const target = event.target;
-                            const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-                            target.setAttribute('data-x', x);
-                            target.setAttribute('data-y', y);
-                            updateTransform(target);
-                            updateState(target.id, { x, y });
-                        }
-                    }
-                })
-                .gesturable({
-                    listeners: {
-                        start(event) {
-                            bringToFront(event.target);
-                            event.target.setAttribute('data-start-scale', event.target.getAttribute('data-scale') || 1);
-                        },
-                        move(event) {
-                            const target = event.target;
-                            const newAngle = (parseFloat(target.getAttribute('data-angle')) || 0) + event.da;
-                            target.setAttribute('data-angle', newAngle);
-                            let newScale = (parseFloat(target.getAttribute('data-start-scale')) || 1) * event.scale;
-                            newScale = Math.max(0.1, Math.min(newScale, 5.0));
-                            target.setAttribute('data-scale', newScale);
-                            updateTransform(target);
-                            updateState(target.id, { angle: newAngle, scale: newScale });
-                        }
-                    }
-                })
-                .on('down', function(event) { bringToFront(event.currentTarget); });
-        } else {
-            // PC: wrapper を操作
-            interact('.item-wrapper')
-                .draggable({
-                    listeners: {
-                        start(event) {
-                            selectWrapper(event.target);
-                        },
-                        move(event) {
-                            const target = event.target;
-                            const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-                            target.setAttribute('data-x', x);
-                            target.setAttribute('data-y', y);
-                            updateTransform(target);
-                            updateState(target.getAttribute('data-item-id'), { x, y });
-                        }
-                    }
-                });
-        }
-
-        // ==========================================
-        // 画像読み込み
-        // ==========================================
-        document.getElementById('input-bg').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const bgUrl = event.target.result;
-                document.getElementById('background').style.backgroundImage = `url('${bgUrl}')`;
-                appState.pages[appState.currentPageIndex].background = bgUrl;
-            };
-            reader.readAsDataURL(file);
-            e.target.value = '';
-        });
-
-        document.getElementById('input-add').addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            files.forEach((file) => {
-                const myOffset = placementOffset;
-                placementOffset += 30;
-                if (placementOffset > 100) placementOffset = -50;
-                const reader = new FileReader();
-                reader.onload = (event) => { addNewImageToState(event.target.result, myOffset); };
-                reader.readAsDataURL(file);
-            });
-            e.target.value = '';
-        });
-
-        function addNewImageToState(src, offset) {
-            const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
-            zIndexCounter++;
-            const itemData = { id, src, x: 0, y: 0, scale: 1, angle: 0, zIndex: zIndexCounter };
-            appState.pages[appState.currentPageIndex].items.push(itemData);
-
-            // DOM要素を直接生成して配置（renderItem と同じ構造）
-            if (IS_TOUCH) {
-                const imgEl = document.createElement('img');
-                imgEl.className = 'canvas-item';
-                imgEl.id = id;
-                imgEl.style.zIndex = zIndexCounter;
-                imgEl.style.opacity = '0';
-                imgEl.setAttribute('data-x', 0);
-                imgEl.setAttribute('data-y', 0);
-                imgEl.setAttribute('data-scale', 1);
-                imgEl.setAttribute('data-angle', 0);
-                updateTransform(imgEl);
-                document.getElementById('canvas-container').appendChild(imgEl);
-
-                imgEl.addEventListener('load', () => {
-                    const { startX, startY, optimalScale } = calcInitialPlacement(imgEl.naturalWidth, imgEl.naturalHeight, offset);
-                    imgEl.setAttribute('data-x', startX);
-                    imgEl.setAttribute('data-y', startY);
-                    imgEl.setAttribute('data-scale', optimalScale);
-                    itemData.x = startX; itemData.y = startY; itemData.scale = optimalScale;
-                    updateTransform(imgEl);
-                    imgEl.style.opacity = '1';
-                });
-                imgEl.src = src;
-            } else {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'item-wrapper';
-                wrapper.id = 'wrapper_' + id;
-                wrapper.style.zIndex = zIndexCounter;
-                wrapper.style.opacity = '0';
-                wrapper.setAttribute('data-x', 0);
-                wrapper.setAttribute('data-y', 0);
-                wrapper.setAttribute('data-scale', 1);
-                wrapper.setAttribute('data-angle', 0);
-                wrapper.setAttribute('data-item-id', id);
-
-                const imgEl = document.createElement('img');
-                imgEl.className = 'canvas-item';
-                imgEl.id = id;
-                imgEl.style.position = 'relative';
-                imgEl.style.boxShadow = 'none';
-                imgEl.style.transform = 'none';
-
-                const border = document.createElement('div');
-                border.className = 'selection-border';
-
-                ['tl','tr','bl','br'].forEach(corner => {
-                    const handle = document.createElement('div');
-                    handle.className = 'rotate-handle ' + corner;
-                    handle.textContent = '↻';
-                    handle.setAttribute('data-corner', corner);
-                    attachRotateHandle(handle, wrapper);
-                    wrapper.appendChild(handle);
-                });
-
-                wrapper.appendChild(imgEl);
-                wrapper.appendChild(border);
-                updateTransform(wrapper);
-
-                wrapper.addEventListener('mousedown', (e) => {
-                    if (!e.target.classList.contains('rotate-handle')) {
-                        selectWrapper(wrapper);
-                    }
-                });
-
-                document.getElementById('canvas-container').appendChild(wrapper);
-
-                imgEl.addEventListener('load', () => {
-                    wrapper.style.width = imgEl.offsetWidth + 'px';
-                    wrapper.style.height = imgEl.offsetHeight + 'px';
-
-                    const { startX, startY, optimalScale } = calcInitialPlacement(imgEl.naturalWidth, imgEl.naturalHeight, offset);
-                    wrapper.setAttribute('data-x', startX);
-                    wrapper.setAttribute('data-y', startY);
-                    wrapper.setAttribute('data-scale', optimalScale);
-                    itemData.x = startX; itemData.y = startY; itemData.scale = optimalScale;
-                    updateTransform(wrapper);
-                    wrapper.style.opacity = '1';
-                    selectWrapper(wrapper); // 追加直後は選択状態に
-                });
-                imgEl.src = src;
+function bindPCInteract(wrapper) {
+    // ドラッグ
+    interact(wrapper).draggable({
+        ignoreFrom: '.rotate-handle',
+        listeners: {
+            start: function(ev) { selectWrapper(ev.target); },
+            move: function(ev) {
+                var t = ev.target;
+                var x = (parseFloat(t.dataset.x) || 0) + ev.dx;
+                var y = (parseFloat(t.dataset.y) || 0) + ev.dy;
+                t.dataset.x = x;
+                t.dataset.y = y;
+                applyTransform(t);
+                updateState(t.dataset.itemId, { x: x, y: y });
             }
         }
+    });
 
-        // 初期配置計算（共通）
-        function calcInitialPlacement(naturalW, naturalH, offset) {
-            const maxW = window.innerWidth * 0.4;
-            const maxH = window.innerHeight * 0.4;
-            let optimalScale = 1;
-            if (naturalW > maxW || naturalH > maxH) {
-                optimalScale = Math.min(maxW / naturalW, maxH / naturalH);
-            }
-            const displayWidth  = naturalW * optimalScale;
-            const displayHeight = naturalH * optimalScale;
-            const startX = (window.innerWidth  / 2) - (displayWidth  / 2) + offset;
-            const startY = (window.innerHeight / 2) - (displayHeight / 2) + offset;
-            return { startX, startY, optimalScale };
-        }
+    // 4つのハンドルそれぞれに回転バインド
+    var handles = wrapper.querySelectorAll('.rotate-handle');
+    for (var i = 0; i < handles.length; i++) {
+        attachRotateHandle(handles[i], wrapper);
+    }
+}
 
-        // ==========================================
-        // ユーティリティ
-        // ==========================================
-        function updateTransform(target) {
-            const x = target.getAttribute('data-x');
-            const y = target.getAttribute('data-y');
-            const scale = target.getAttribute('data-scale');
-            const angle = target.getAttribute('data-angle');
-            target.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) scale(${scale})`;
-        }
+// =====================================================
+// PC 回転ハンドル
+// =====================================================
+function attachRotateHandle(handle, wrapper) {
+    handle.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
 
-        function bringToFront(target) {
-            if (parseInt(target.style.zIndex, 10) < zIndexCounter) {
-                zIndexCounter++;
-                target.style.zIndex = zIndexCounter;
-                const itemId = target.getAttribute('data-item-id') || target.id;
-                updateState(itemId, { zIndex: zIndexCounter });
-            }
-        }
+        var startAngle = parseFloat(wrapper.dataset.angle) || 0;
+        var center = getWrapperCenter(wrapper);
+        var startMouseAngle = Math.atan2(e.clientY - center.y, e.clientX - center.x) * 180 / Math.PI;
 
-        function updateState(id, updates) {
-            const items = appState.pages[appState.currentPageIndex].items;
-            const item = items.find(i => i.id === id);
-            if (item) Object.assign(item, updates);
+        try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+
+        function onMove(ev) {
+            var c = getWrapperCenter(wrapper);
+            var cur = Math.atan2(ev.clientY - c.y, ev.clientX - c.x) * 180 / Math.PI;
+            var newAngle = startAngle + (cur - startMouseAngle);
+            wrapper.dataset.angle = newAngle;
+            applyTransform(wrapper);
+            updateState(wrapper.dataset.itemId, { angle: newAngle });
         }
-    </script>
+        function onUp(ev) {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointercancel', onUp);
+            try { handle.releasePointerCapture(ev.pointerId); } catch (_) {}
+        }
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+    });
+}
+
+function getWrapperCenter(wrapper) {
+    var x  = parseFloat(wrapper.dataset.x)  || 0;
+    var y  = parseFloat(wrapper.dataset.y)  || 0;
+    var sc = parseFloat(wrapper.dataset.scale) || 1;
+    var w  = parseFloat(wrapper.style.width)  || wrapper.offsetWidth  || 0;
+    var h  = parseFloat(wrapper.style.height) || wrapper.offsetHeight || 0;
+    return {
+        x: x + (w * sc) / 2,
+        y: y + (h * sc) / 2
+    };
+}
+
+// =====================================================
+// PC ホイール拡大縮小
+// =====================================================
+document.getElementById('canvas-container').addEventListener('wheel', function(e) {
+    if (IS_TOUCH) return;
+    var wrapper = e.target.closest('.item-wrapper');
+    if (!wrapper) return;
+    e.preventDefault();
+    var cur = parseFloat(wrapper.dataset.scale) || 1;
+    var factor = e.deltaY < 0 ? 1.05 : 0.95;
+    var next = Math.max(0.1, Math.min(cur * factor, 5.0));
+    wrapper.dataset.scale = next;
+    applyTransform(wrapper);
+    updateState(wrapper.dataset.itemId, { scale: next });
+}, { passive: false });
+
+// =====================================================
+// PC 選択管理
+// =====================================================
+function selectWrapper(wrapper) {
+    if (IS_TOUCH) return;
+    deselectAll();
+    wrapper.classList.add('selected');
+    bringToFront(wrapper);
+}
+function deselectAll() {
+    var sel = document.querySelectorAll('.item-wrapper.selected');
+    for (var i = 0; i < sel.length; i++) sel[i].classList.remove('selected');
+}
+
+// =====================================================
+// ユーティリティ
+// =====================================================
+function applyTransform(el) {
+    var x  = el.dataset.x  || 0;
+    var y  = el.dataset.y  || 0;
+    var sc = el.dataset.scale || 1;
+    var an = el.dataset.angle || 0;
+    el.style.transform = 'translate(' + x + 'px, ' + y + 'px) rotate(' + an + 'deg) scale(' + sc + ')';
+}
+
+function bringToFront(el) {
+    var z = parseInt(el.style.zIndex, 10) || 0;
+    if (z < zIndexCounter) {
+        zIndexCounter++;
+        el.style.zIndex = zIndexCounter;
+        updateState(el.dataset.itemId, { zIndex: zIndexCounter });
+    }
+}
+
+function updateState(id, updates) {
+    var items = appState.pages[appState.currentPageIndex].items;
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].id === id) {
+            for (var k in updates) items[i][k] = updates[k];
+            return;
+        }
+    }
+}
+</script>
 </body>
 </html>
