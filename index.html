@@ -140,6 +140,7 @@
             updateTransform(imgEl);
             document.getElementById('canvas-container').appendChild(imgEl);
             imgEl.src = itemData.src;
+            bindItemInteract(imgEl);
         }
 
         document.getElementById('input-bg').addEventListener('change', (e) => {
@@ -173,87 +174,87 @@
         });
 
         function addNewImageToState(src, offset) {
-            const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
-            zIndexCounter++;
+            // Safari では img の load イベントが不安定なため
+            // 先に new Image() でサイズを取得してから DOM を構築する
+            const probe = new Image();
+            probe.onload = function() {
+                const nw = probe.naturalWidth;
+                const nh = probe.naturalHeight;
 
-            const itemData = { id, src, x: 0, y: 0, scale: 1, angle: 0, zIndex: zIndexCounter };
-            appState.pages[appState.currentPageIndex].items.push(itemData);
-
-            const imgEl = document.createElement('img');
-            imgEl.className = 'canvas-item';
-            imgEl.id = id;
-            imgEl.style.zIndex = zIndexCounter;
-            imgEl.style.opacity = '0';
-            imgEl.setAttribute('data-x', 0);
-            imgEl.setAttribute('data-y', 0);
-            imgEl.setAttribute('data-scale', 1);
-            imgEl.setAttribute('data-angle', 0);
-            updateTransform(imgEl);
-            document.getElementById('canvas-container').appendChild(imgEl);
-
-            imgEl.addEventListener('load', () => {
-                const maxW = window.innerWidth * 0.4;
+                const maxW = window.innerWidth  * 0.4;
                 const maxH = window.innerHeight * 0.4;
                 let optimalScale = 1;
-                if (imgEl.naturalWidth > maxW || imgEl.naturalHeight > maxH) {
-                    const scaleW = maxW / imgEl.naturalWidth;
-                    const scaleH = maxH / imgEl.naturalHeight;
-                    optimalScale = Math.min(scaleW, scaleH);
+                if (nw > maxW || nh > maxH) {
+                    optimalScale = Math.min(maxW / nw, maxH / nh);
                 }
-                const displayWidth  = imgEl.naturalWidth  * optimalScale;
-                const displayHeight = imgEl.naturalHeight * optimalScale;
+                const startX = (window.innerWidth  - nw * optimalScale) / 2 + offset;
+                const startY = (window.innerHeight - nh * optimalScale) / 2 + offset;
 
-                const startX = (window.innerWidth  / 2) - (displayWidth  / 2) + offset;
-                const startY = (window.innerHeight / 2) - (displayHeight / 2) + offset;
+                const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
+                zIndexCounter++;
+                const itemData = {
+                    id, src,
+                    x: startX, y: startY,
+                    scale: optimalScale, angle: 0,
+                    zIndex: zIndexCounter
+                };
+                appState.pages[appState.currentPageIndex].items.push(itemData);
 
+                // DOM 生成して即配置
+                const imgEl = document.createElement('img');
+                imgEl.className = 'canvas-item';
+                imgEl.id = id;
+                imgEl.src = src;
+                imgEl.style.zIndex = zIndexCounter;
                 imgEl.setAttribute('data-x', startX);
                 imgEl.setAttribute('data-y', startY);
                 imgEl.setAttribute('data-scale', optimalScale);
-                itemData.x = startX;
-                itemData.y = startY;
-                itemData.scale = optimalScale;
-
+                imgEl.setAttribute('data-angle', 0);
                 updateTransform(imgEl);
-                imgEl.style.opacity = '1';
-            });
+                document.getElementById('canvas-container').appendChild(imgEl);
 
-            imgEl.src = src;
+                // 要素ごとに個別バインド（動的追加対応）
+                bindItemInteract(imgEl);
+            };
+            probe.src = src;
         }
 
-        interact('.canvas-item')
-            .draggable({
-                listeners: {
-                    start(event) { bringToFront(event.target); },
-                    move(event) {
-                        const target = event.target;
-                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-                        target.setAttribute('data-x', x);
-                        target.setAttribute('data-y', y);
-                        updateTransform(target);
-                        updateState(target.id, { x, y });
+        function bindItemInteract(el) {
+            interact(el)
+                .draggable({
+                    listeners: {
+                        start(event) { bringToFront(event.target); },
+                        move(event) {
+                            const target = event.target;
+                            const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                            target.setAttribute('data-x', x);
+                            target.setAttribute('data-y', y);
+                            updateTransform(target);
+                            updateState(target.id, { x, y });
+                        }
                     }
-                }
-            })
-            .gesturable({
-                listeners: {
-                    start(event) {
-                        bringToFront(event.target);
-                        event.target.setAttribute('data-start-scale', event.target.getAttribute('data-scale') || 1);
-                    },
-                    move(event) {
-                        const target = event.target;
-                        const newAngle = (parseFloat(target.getAttribute('data-angle')) || 0) + event.da;
-                        target.setAttribute('data-angle', newAngle);
-                        let newScale = (parseFloat(target.getAttribute('data-start-scale')) || 1) * event.scale;
-                        newScale = Math.max(0.1, Math.min(newScale, 5.0));
-                        target.setAttribute('data-scale', newScale);
-                        updateTransform(target);
-                        updateState(target.id, { angle: newAngle, scale: newScale });
+                })
+                .gesturable({
+                    listeners: {
+                        start(event) {
+                            bringToFront(event.target);
+                            event.target.setAttribute('data-start-scale', event.target.getAttribute('data-scale') || 1);
+                        },
+                        move(event) {
+                            const target = event.target;
+                            const newAngle = (parseFloat(target.getAttribute('data-angle')) || 0) + event.da;
+                            target.setAttribute('data-angle', newAngle);
+                            let newScale = (parseFloat(target.getAttribute('data-start-scale')) || 1) * event.scale;
+                            newScale = Math.max(0.1, Math.min(newScale, 5.0));
+                            target.setAttribute('data-scale', newScale);
+                            updateTransform(target);
+                            updateState(target.id, { angle: newAngle, scale: newScale });
+                        }
                     }
-                }
-            })
-            .on('down', function(event) { bringToFront(event.currentTarget); });
+                })
+                .on('down', function(event) { bringToFront(event.currentTarget); });
+        }
 
         function updateTransform(target) {
             const x = target.getAttribute('data-x');
