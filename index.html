@@ -1,485 +1,414 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>画像操作アプリ</title>
-    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #e0e0e0;
-            touch-action: none; 
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>画像キャンバス</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        #background {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-size: contain;
-            background-position: center;
-            background-repeat: no-repeat;
-            z-index: 0;
-            pointer-events: none;
-        }
+  body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #1a1a1a;
+    font-family: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
 
-        #canvas-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
+  /* キャンバスエリア */
+  #canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    overflow: hidden;
+  }
 
-        .canvas-item {
-            position: absolute;
-            top: 0;
-            left: 0;
-            transform-origin: center center;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-            border-radius: 8px;
-            /* iPadでも確実に最初から見えるように */
-            visibility: visible;
-        }
+  /* 背景画像 */
+  #bg-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    display: none;
+  }
 
-        .nav-btn {
-            position: absolute;
-            bottom: 20px;
-            font-size: 40px;
-            color: rgba(0, 0, 0, 0.4);
-            background: transparent;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            cursor: pointer;
-            touch-action: manipulation;
-            user-select: none;
-        }
-        .nav-btn:active { color: rgba(0, 0, 0, 0.8); }
-        .nav-btn.left { left: 20px; }
-        .nav-btn.right { right: 20px; }
-        .nav-btn.disabled { opacity: 0.1; pointer-events: none; }
+  /* 貼り付け画像 */
+  .img-item {
+    position: absolute;
+    cursor: pointer;
+    touch-action: none;
+    transform-origin: center center;
+    will-change: transform;
+  }
 
-        .settings-btn {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 40px;
-            color: #000;
-            opacity: 0.15;
-            z-index: 9999;
-            cursor: pointer;
-            touch-action: manipulation;
-            user-select: none;
-        }
-        .settings-btn:active { opacity: 0.4; }
+  .img-item img {
+    display: block;
+    max-width: 300px;
+    max-height: 300px;
+    width: auto;
+    height: auto;
+    pointer-events: none;
+    -webkit-user-drag: none;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
 
-        #settings-modal {
-            display: none;
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.4);
-            z-index: 10000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(2px);
-        }
-        .modal-content {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            min-width: 280px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        .modal-content button {
-            padding: 16px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #fff;
-            background-color: #007aff;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            touch-action: manipulation;
-        }
-        .modal-content button:active { background-color: #005bb5; }
-        .modal-content button.close-btn { background-color: #8e8e93; }
-        .modal-content button.close-btn:active { background-color: #636366; }
+  .img-item.selected img {
+    border-color: rgba(255,255,255,0.6);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+  }
 
-        .hidden-input {
-            display: none;
-        }
-    </style>
+  /* UIツールバー */
+  #toolbar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(30,30,30,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 10px 16px;
+    z-index: 1000;
+  }
+
+  .tb-btn {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tb-btn:active {
+    background: rgba(255,255,255,0.25);
+  }
+
+  .tb-divider {
+    width: 1px;
+    height: 28px;
+    background: rgba(255,255,255,0.15);
+  }
+
+  .tb-btn.danger {
+    border-color: rgba(255,80,80,0.3);
+    color: #ff8080;
+  }
+
+  .tb-btn.danger:active {
+    background: rgba(255,80,80,0.2);
+  }
+
+  /* ファイル入力（非表示） */
+  #bg-input, #img-input {
+    display: none;
+  }
+
+  /* 背景なしのプレースホルダー */
+  #placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: rgba(255,255,255,0.2);
+    font-size: 15px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  #placeholder .icon {
+    font-size: 48px;
+    opacity: 0.3;
+  }
+</style>
 </head>
 <body>
 
-    <div id="btn-prev" class="nav-btn left disabled">◁</div>
-    <div id="btn-settings" class="settings-btn">⚙</div>
-    <div id="btn-next" class="nav-btn right disabled">▷</div>
+<div id="canvas">
+  <img id="bg-image" alt="背景">
+  <div id="placeholder">
+    <div class="icon">🖼️</div>
+    <div>下のボタンから背景・画像を追加できます</div>
+  </div>
+</div>
 
-    <div id="settings-modal">
-        <div class="modal-content">
-            <button id="btn-bg">背景を変更</button>
-            <button id="btn-add">画像を追加</button>
-            <button id="btn-add-page">新しいページを追加</button>
-            <button id="btn-close-modal" class="close-btn">閉じる</button>
-        </div>
-    </div>
+<div id="toolbar">
+  <button class="tb-btn" onclick="document.getElementById('bg-input').click()">🌄 背景</button>
+  <div class="tb-divider"></div>
+  <button class="tb-btn" onclick="document.getElementById('img-input').click()">➕ 画像</button>
+  <div class="tb-divider"></div>
+  <button class="tb-btn danger" id="delete-btn" onclick="deleteSelected()" style="display:none">🗑️ 削除</button>
+</div>
 
-    <input type="file" id="input-bg" class="hidden-input" accept="image/*">
-    <input type="file" id="input-add" class="hidden-input" accept="image/*" multiple>
+<input type="file" id="bg-input" accept="image/*">
+<input type="file" id="img-input" accept="image/*" multiple>
 
-    <div id="background"></div>
-    <div id="canvas-container"></div>
+<script>
+// ========================
+// 状態管理
+// ========================
+let selectedItem = null;
+const canvas = document.getElementById('canvas');
+const bgImage = document.getElementById('bg-image');
+const placeholder = document.getElementById('placeholder');
+const deleteBtn = document.getElementById('delete-btn');
 
-    <script>
-        // ==========================================
-        // 状態管理（複数ページ対応）
-        // ==========================================
-        const appState = {
-            pages: [
-                {
-                    id: 'page-1',
-                    background: null,
-                    items: []
-                }
-            ],
-            currentPageIndex: 0
-        };
+// ========================
+// 背景画像
+// ========================
+document.getElementById('bg-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  bgImage.src = url;
+  bgImage.style.display = 'block';
+  placeholder.style.opacity = '0';
+  e.target.value = '';
+});
 
-        let zIndexCounter = 10;
-        let placementOffset = 0;
+// ========================
+// 画像追加
+// ========================
+document.getElementById('img-input').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  files.forEach((file, i) => {
+    setTimeout(() => addImageItem(file), i * 50);
+  });
+  e.target.value = '';
+});
 
-        // ==========================================
-        // UIイベントのバインド
-        // ==========================================
-        const modal = document.getElementById('settings-modal');
-        
-        document.getElementById('btn-settings').addEventListener('click', () => {
-            modal.style.display = 'flex';
-        });
-        document.getElementById('btn-close-modal').addEventListener('click', () => {
-            modal.style.display = 'none';
-        });
+function addImageItem(file) {
+  const url = URL.createObjectURL(file);
+  const item = document.createElement('div');
+  item.className = 'img-item';
 
-        document.getElementById('btn-bg').addEventListener('click', () => {
-            document.getElementById('input-bg').click();
-            modal.style.display = 'none';
-        });
+  const img = document.createElement('img');
+  img.src = url;
+  img.onload = () => {
+    // 中央付近にランダム配置
+    const cx = canvas.clientWidth / 2 + (Math.random() - 0.5) * 120;
+    const cy = canvas.clientHeight / 2 + (Math.random() - 0.5) * 120;
+    state.x = cx - img.naturalWidth * 0.15;
+    state.y = cy - img.naturalHeight * 0.15;
+    applyTransform(item, state);
+  };
 
-        document.getElementById('btn-add').addEventListener('click', () => {
-            document.getElementById('input-add').click();
-            modal.style.display = 'none';
-        });
+  item.appendChild(img);
+  canvas.appendChild(item);
 
-        document.getElementById('btn-add-page').addEventListener('click', () => {
-            appState.pages.push({
-                id: 'page-' + (appState.pages.length + 1),
-                background: null,
-                items: []
-            });
-            appState.currentPageIndex = appState.pages.length - 1;
-            renderPage();
-            modal.style.display = 'none';
-        });
+  // 各アイテムの変換状態
+  const state = { x: 100, y: 100, scale: 1, rotate: 0 };
+  item._state = state;
 
-        document.getElementById('btn-prev').addEventListener('click', () => {
-            if (appState.currentPageIndex > 0) {
-                appState.currentPageIndex--;
-                renderPage();
-            }
-        });
+  attachTouchHandlers(item, state);
+  selectItem(item);
+}
 
-        document.getElementById('btn-next').addEventListener('click', () => {
-            if (appState.currentPageIndex < appState.pages.length - 1) {
-                appState.currentPageIndex++;
-                renderPage();
-            }
-        });
+// ========================
+// 変換適用
+// ========================
+function applyTransform(el, s) {
+  el.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rotate}deg) scale(${s.scale})`;
+}
 
-        // ==========================================
-        // 描画ロジック（ページ切り替え対応）
-        // ==========================================
-        function renderPage() {
-            const page = appState.pages[appState.currentPageIndex];
-            
-            if (page.background) {
-                document.getElementById('background').style.backgroundImage = `url('${page.background}')`;
-            } else {
-                document.getElementById('background').style.backgroundImage = 'none';
-            }
+// ========================
+// 選択
+// ========================
+function selectItem(item) {
+  if (selectedItem && selectedItem !== item) {
+    selectedItem.classList.remove('selected');
+  }
+  selectedItem = item;
+  item.classList.add('selected');
+  item.style.zIndex = getNextZ();
+  deleteBtn.style.display = '';
+}
 
-            const container = document.getElementById('canvas-container');
-            container.innerHTML = '';
+function deselectAll() {
+  if (selectedItem) {
+    selectedItem.classList.remove('selected');
+    selectedItem = null;
+  }
+  deleteBtn.style.display = 'none';
+}
 
-            page.items.forEach(itemData => {
-                renderItem(itemData);
-            });
+let zCounter = 10;
+function getNextZ() {
+  return ++zCounter;
+}
 
-            if (appState.currentPageIndex === 0) {
-                document.getElementById('btn-prev').classList.add('disabled');
-            } else {
-                document.getElementById('btn-prev').classList.remove('disabled');
-            }
+// キャンバス背景タップで選択解除
+canvas.addEventListener('touchstart', (e) => {
+  if (e.target === canvas || e.target === bgImage) {
+    deselectAll();
+  }
+}, { passive: false });
 
-            if (appState.currentPageIndex >= appState.pages.length - 1) {
-                document.getElementById('btn-next').classList.add('disabled');
-            } else {
-                document.getElementById('btn-next').classList.remove('disabled');
-            }
-        }
+// ========================
+// 削除
+// ========================
+function deleteSelected() {
+  if (!selectedItem) return;
+  canvas.removeChild(selectedItem);
+  selectedItem = null;
+  deleteBtn.style.display = 'none';
+}
 
-        // ページ切り替え時の再描画用（位置・サイズが既に確定している）
-        function renderItem(itemData) {
-            const imgEl = document.createElement('img');
-            imgEl.className = 'canvas-item';
-            imgEl.id = itemData.id;
-            imgEl.style.zIndex = itemData.zIndex;
-            
-            imgEl.setAttribute('data-x', itemData.x);
-            imgEl.setAttribute('data-y', itemData.y);
-            imgEl.setAttribute('data-scale', itemData.scale);
-            imgEl.setAttribute('data-angle', itemData.angle);
-            
-            updateTransform(imgEl);
-            document.getElementById('canvas-container').appendChild(imgEl);
-            imgEl.src = itemData.src;
-        }
+// ========================
+// タッチ処理（移動・ピンチ・回転）
+// ========================
+function attachTouchHandlers(el, state) {
+  let touches = {};       // 現在のタッチ情報
+  let lastDist = null;    // ピンチ距離
+  let lastAngle = null;   // 回転角度
+  let lastMidX = null;    // 中点X
+  let lastMidY = null;    // 中点Y
+  let lastTap = 0;        // ダブルタップ検出用
 
-        // ==========================================
-        // 画像読み込み処理
-        // ==========================================
-        
-        // 1. 背景画像の設定
-        document.getElementById('input-bg').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            // 背景はBase64で残す（保存しても消えないように）
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const bgUrl = event.target.result;
-                document.getElementById('background').style.backgroundImage = `url('${bgUrl}')`;
-                appState.pages[appState.currentPageIndex].background = bgUrl;
-            };
-            reader.readAsDataURL(file);
-            e.target.value = '';
-        });
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectItem(el);
+    el.style.zIndex = getNextZ();
 
-        // 2. 複数画像の追加（iPad対応：createObjectURLを使う）
-        document.getElementById('input-add').addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            // ファイルを順番に処理する（並行処理で詰まらないように）
-            files.forEach((file) => {
-                addNewImageFromFile(file);
-            });
-            e.target.value = '';
-        });
+    // ダブルタップ無効化
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      lastTap = 0;
+      return;
+    }
+    lastTap = now;
 
-        // ==========================================
-        // ★ 新しい画像追加処理（iPad対応版）
-        // ==========================================
-        function addNewImageFromFile(file) {
-            const id = 'item_' + Date.now() + Math.floor(Math.random() * 100000);
-            zIndexCounter++;
-            const myZIndex = zIndexCounter;
+    Array.from(e.changedTouches).forEach(t => {
+      touches[t.identifier] = { x: t.clientX, y: t.clientY };
+    });
 
-            // ★ ポイント1: createObjectURL を使う（Base64より軽くてiPadで安定）
-            const objectUrl = URL.createObjectURL(file);
+    const ids = Object.keys(touches);
+    if (ids.length === 2) {
+      const [a, b] = ids.map(id => touches[id]);
+      lastDist = dist(a, b);
+      lastAngle = angle(a, b);
+      lastMidX = (a.x + b.x) / 2;
+      lastMidY = (a.y + b.y) / 2;
+    }
+  }, { passive: false });
 
-            // ★ ポイント2: Image オブジェクトでサイズだけ先に取得してから配置
-            const probe = new Image();
+  el.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-            // 念のためタイムアウトも用意（iPadで稀にonloadが発火しない場合の保険）
-            let settled = false;
-            
-            const placeImage = (naturalWidth, naturalHeight) => {
-                if (settled) return;
-                settled = true;
+    Array.from(e.changedTouches).forEach(t => {
+      touches[t.identifier] = { x: t.clientX, y: t.clientY };
+    });
 
-                // ★ 修正: iPadで window.innerWidth が実画面より大きい値を返すことがあるので
-                // 実際のコンテナサイズを使う
-                const container = document.getElementById('canvas-container');
-                const viewW = container.clientWidth || document.documentElement.clientWidth || window.innerWidth;
-                const viewH = container.clientHeight || document.documentElement.clientHeight || window.innerHeight;
+    const ids = Object.keys(touches);
 
-                // サイズ計算
-                const maxW = viewW * 0.4;
-                const maxH = viewH * 0.4;
-                let optimalScale = 1;
+    if (ids.length === 1) {
+      // 1本指：移動
+      const t = e.changedTouches[0];
+      const prev = touches[t.identifier];
+      // changedTouchesの前回値と比較するため直前の値を保持
+      const prevPos = el._prevTouch;
+      if (prevPos) {
+        const dx = t.clientX - prevPos.x;
+        const dy = t.clientY - prevPos.y;
+        state.x += dx;
+        state.y += dy;
+      }
+      el._prevTouch = { x: t.clientX, y: t.clientY };
+    } else if (ids.length === 2) {
+      // 2本指：ピンチ＋回転
+      const [a, b] = ids.map(id => touches[id]);
+      const curDist = dist(a, b);
+      const curAngle = angle(a, b);
+      const curMidX = (a.x + b.x) / 2;
+      const curMidY = (a.y + b.y) / 2;
 
-                // naturalWidth/Height が0の場合の保険
-                const nw = naturalWidth || 200;
-                const nh = naturalHeight || 200;
+      if (lastDist !== null) {
+        const scaleDelta = curDist / lastDist;
+        state.scale = Math.max(0.1, Math.min(10, state.scale * scaleDelta));
+      }
+      if (lastAngle !== null) {
+        const angleDelta = curAngle - lastAngle;
+        state.rotate += angleDelta;
+      }
+      if (lastMidX !== null) {
+        state.x += curMidX - lastMidX;
+        state.y += curMidY - lastMidY;
+      }
 
-                if (nw > maxW || nh > maxH) {
-                    const scaleW = maxW / nw;
-                    const scaleH = maxH / nh;
-                    optimalScale = Math.min(scaleW, scaleH);
-                }
+      lastDist = curDist;
+      lastAngle = curAngle;
+      lastMidX = curMidX;
+      lastMidY = curMidY;
+    }
 
-                const displayWidth = nw * optimalScale;
-                const displayHeight = nh * optimalScale;
+    applyTransform(el, state);
+  }, { passive: false });
 
-                const startX = (viewW / 2) - (displayWidth / 2) + placementOffset;
-                const startY = (viewH / 2) - (displayHeight / 2) + placementOffset;
+  el.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    Array.from(e.changedTouches).forEach(t => {
+      delete touches[t.identifier];
+    });
+    el._prevTouch = null;
 
-                placementOffset += 30;
-                if (placementOffset > 100) {
-                    placementOffset = -50;
-                }
+    const ids = Object.keys(touches);
+    if (ids.length < 2) {
+      lastDist = null;
+      lastAngle = null;
+      lastMidX = null;
+      lastMidY = null;
+    }
+    if (ids.length === 1) {
+      const id = ids[0];
+      el._prevTouch = { x: touches[id].x, y: touches[id].y };
+    }
+  }, { passive: false });
+}
 
-                // 状態を作成
-                const itemData = {
-                    id: id,
-                    src: objectUrl,
-                    x: startX,
-                    y: startY,
-                    scale: optimalScale,
-                    angle: 0,
-                    zIndex: myZIndex
-                };
-                appState.pages[appState.currentPageIndex].items.push(itemData);
+// ========================
+// ユーティリティ
+// ========================
+function dist(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
 
-                // DOM に追加（位置・サイズが確定してから生成するので、ちらつきなし）
-                const imgEl = document.createElement('img');
-                imgEl.className = 'canvas-item';
-                imgEl.id = id;
-                imgEl.style.zIndex = myZIndex;
-                imgEl.setAttribute('data-x', startX);
-                imgEl.setAttribute('data-y', startY);
-                imgEl.setAttribute('data-scale', optimalScale);
-                imgEl.setAttribute('data-angle', 0);
-                updateTransform(imgEl);
-                imgEl.src = objectUrl;
-                document.getElementById('canvas-container').appendChild(imgEl);
-            };
+function angle(a, b) {
+  return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+}
 
-            // ★ src 設定の前に onload/onerror を登録
-            probe.onload = () => {
-                placeImage(probe.naturalWidth, probe.naturalHeight);
-            };
-            probe.onerror = () => {
-                // 読み込み失敗でも仮の位置に表示する
-                placeImage(200, 200);
-            };
+// ブラウザのダブルタップズーム完全無効化
+document.addEventListener('touchstart', (e) => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
 
-            // ★ ポイント3: タイムアウト保険（iPadでonloadが来ない時のため）
-            setTimeout(() => {
-                if (!settled) {
-                    // probeがすでにロード完了していればnaturalWidthが取れる
-                    if (probe.naturalWidth > 0) {
-                        placeImage(probe.naturalWidth, probe.naturalHeight);
-                    } else {
-                        placeImage(200, 200); // フォールバック
-                    }
-                }
-            }, 1500);
-
-            probe.src = objectUrl;
-        }
-
-        // ==========================================
-        // ジェスチャー操作 (interact.js の設定)
-        // ==========================================
-        interact('.canvas-item')
-            .draggable({
-                listeners: {
-                    start(event) {
-                        bringToFront(event.target);
-                    },
-                    move(event) {
-                        const target = event.target;
-                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-                        
-                        target.setAttribute('data-x', x);
-                        target.setAttribute('data-y', y);
-                        
-                        updateTransform(target);
-                        updateState(target.id, { x, y });
-                    }
-                }
-            })
-            .gesturable({
-                listeners: {
-                    start(event) {
-                        bringToFront(event.target);
-                        const target = event.target;
-                        target.setAttribute('data-start-scale', target.getAttribute('data-scale') || 1);
-                    },
-                    move(event) {
-                        const target = event.target;
-                        
-                        const currentAngle = parseFloat(target.getAttribute('data-angle')) || 0;
-                        const newAngle = currentAngle + event.da;
-                        target.setAttribute('data-angle', newAngle);
-
-                        const startScale = parseFloat(target.getAttribute('data-start-scale')) || 1;
-                        let newScale = startScale * event.scale;
-                        
-                        newScale = Math.max(0.1, Math.min(newScale, 5.0));
-                        target.setAttribute('data-scale', newScale);
-
-                        updateTransform(target);
-                        updateState(target.id, { angle: newAngle, scale: newScale });
-                    }
-                }
-            })
-            .on('down', function (event) {
-                bringToFront(event.currentTarget);
-            });
-
-        // ==========================================
-        // ユーティリティ関数
-        // ==========================================
-        
-        function updateTransform(target) {
-            const x = target.getAttribute('data-x');
-            const y = target.getAttribute('data-y');
-            const scale = target.getAttribute('data-scale');
-            const angle = target.getAttribute('data-angle');
-            
-            target.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) scale(${scale})`;
-        }
-
-        function bringToFront(target) {
-            const currentZ = parseInt(target.style.zIndex, 10) || 0;
-            if (currentZ < zIndexCounter) {
-                zIndexCounter++;
-                target.style.zIndex = zIndexCounter;
-                updateState(target.id, { zIndex: zIndexCounter });
-            }
-        }
-
-        function updateState(id, updates) {
-            const items = appState.pages[appState.currentPageIndex].items;
-            const item = items.find(i => i.id === id);
-            if (item) {
-                Object.assign(item, updates);
-            }
-        }
-    </script>
+let lastTouch = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouch < 300) e.preventDefault();
+  lastTouch = now;
+}, { passive: false });
+</script>
 </body>
 </html>
