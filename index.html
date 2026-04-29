@@ -27,6 +27,48 @@
             position: absolute; top: 0; left: 0; transform-origin: center center;
             box-shadow: 0 10px 20px rgba(0,0,0,0.3); border-radius: 8px;
         }
+
+        /* 選択枠（PCのみ表示） */
+        .item-wrapper {
+            position: absolute; top: 0; left: 0;
+            transform-origin: center center;
+        }
+        .item-wrapper.selected .selection-border {
+            display: block;
+        }
+        .item-wrapper.selected .rotate-handle {
+            display: flex;
+        }
+        .selection-border {
+            display: none;
+            position: absolute; inset: -10px;
+            border: 2px dashed rgba(0, 122, 255, 0.8);
+            border-radius: 10px;
+            pointer-events: none;
+        }
+        /* 四隅の回転ハンドル */
+        .rotate-handle {
+            display: none;
+            position: absolute;
+            width: 22px; height: 22px;
+            background: #007aff;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: grab;
+            justify-content: center;
+            align-items: center;
+            font-size: 11px;
+            color: #fff;
+            z-index: 10;
+            touch-action: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .rotate-handle:active { cursor: grabbing; }
+        .rotate-handle.tl { top: -18px;  left: -18px; }
+        .rotate-handle.tr { top: -18px;  right: -18px; }
+        .rotate-handle.bl { bottom: -18px; left: -18px; }
+        .rotate-handle.br { bottom: -18px; right: -18px; }
+
         .nav-btn {
             position: absolute; bottom: 20px; font-size: 40px;
             color: rgba(0,0,0,0.4); background: transparent;
@@ -85,6 +127,9 @@
     <div id="canvas-container"></div>
 
     <script>
+        // タッチデバイス判定
+        const IS_TOUCH = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
         const appState = {
             pages: [{ id: 'page-1', background: null, items: [] }],
             currentPageIndex: 0
@@ -92,9 +137,12 @@
 
         let zIndexCounter = 10;
         let placementOffset = 0;
+        let selectedWrapperId = null; // PC用：現在選択中のwrapper ID
 
+        // ==========================================
+        // モーダル・ページ切り替えイベント
+        // ==========================================
         const modal = document.getElementById('settings-modal');
-
         document.getElementById('btn-settings').addEventListener('click', () => { modal.style.display = 'flex'; });
         document.getElementById('btn-close-modal').addEventListener('click', () => { modal.style.display = 'none'; });
         document.getElementById('btn-bg').addEventListener('click', () => {
@@ -118,30 +166,238 @@
             if (appState.currentPageIndex < appState.pages.length - 1) { appState.currentPageIndex++; renderPage(); }
         });
 
+        // キャンバス背景クリックで選択解除（PCのみ）
+        document.getElementById('canvas-container').addEventListener('mousedown', (e) => {
+            if (!IS_TOUCH && e.target === document.getElementById('canvas-container')) {
+                deselectAll();
+            }
+        });
+
+        // ==========================================
+        // 描画
+        // ==========================================
         function renderPage() {
             const page = appState.pages[appState.currentPageIndex];
             document.getElementById('background').style.backgroundImage =
                 page.background ? `url('${page.background}')` : 'none';
             document.getElementById('canvas-container').innerHTML = '';
+            selectedWrapperId = null;
             page.items.forEach(itemData => renderItem(itemData));
             document.getElementById('btn-prev').classList.toggle('disabled', appState.currentPageIndex === 0);
             document.getElementById('btn-next').classList.toggle('disabled', appState.currentPageIndex >= appState.pages.length - 1);
         }
 
         function renderItem(itemData) {
-            const imgEl = document.createElement('img');
-            imgEl.className = 'canvas-item';
-            imgEl.id = itemData.id;
-            imgEl.style.zIndex = itemData.zIndex;
-            imgEl.setAttribute('data-x', itemData.x);
-            imgEl.setAttribute('data-y', itemData.y);
-            imgEl.setAttribute('data-scale', itemData.scale);
-            imgEl.setAttribute('data-angle', itemData.angle);
-            updateTransform(imgEl);
-            document.getElementById('canvas-container').appendChild(imgEl);
-            imgEl.src = itemData.src;
+            if (IS_TOUCH) {
+                // iPad: 従来どおり img 直置き
+                const imgEl = document.createElement('img');
+                imgEl.className = 'canvas-item';
+                imgEl.id = itemData.id;
+                imgEl.style.zIndex = itemData.zIndex;
+                imgEl.setAttribute('data-x', itemData.x);
+                imgEl.setAttribute('data-y', itemData.y);
+                imgEl.setAttribute('data-scale', itemData.scale);
+                imgEl.setAttribute('data-angle', itemData.angle);
+                updateTransform(imgEl);
+                document.getElementById('canvas-container').appendChild(imgEl);
+                imgEl.src = itemData.src;
+            } else {
+                // PC: wrapper でラップ
+                const wrapper = document.createElement('div');
+                wrapper.className = 'item-wrapper';
+                wrapper.id = 'wrapper_' + itemData.id;
+                wrapper.style.zIndex = itemData.zIndex;
+                wrapper.setAttribute('data-x', itemData.x);
+                wrapper.setAttribute('data-y', itemData.y);
+                wrapper.setAttribute('data-scale', itemData.scale);
+                wrapper.setAttribute('data-angle', itemData.angle);
+                wrapper.setAttribute('data-item-id', itemData.id);
+
+                const imgEl = document.createElement('img');
+                imgEl.className = 'canvas-item';
+                imgEl.id = itemData.id;
+                imgEl.style.position = 'relative';
+                imgEl.style.boxShadow = 'none'; // wrapper側で管理
+                imgEl.style.transform = 'none';
+
+                const border = document.createElement('div');
+                border.className = 'selection-border';
+
+                // 四隅ハンドル
+                ['tl','tr','bl','br'].forEach(corner => {
+                    const handle = document.createElement('div');
+                    handle.className = 'rotate-handle ' + corner;
+                    handle.textContent = '↻';
+                    handle.setAttribute('data-corner', corner);
+                    attachRotateHandle(handle, wrapper);
+                    wrapper.appendChild(handle);
+                });
+
+                wrapper.appendChild(imgEl);
+                wrapper.appendChild(border);
+                updateTransform(wrapper);
+
+                // クリックで選択
+                wrapper.addEventListener('mousedown', (e) => {
+                    if (!e.target.classList.contains('rotate-handle')) {
+                        selectWrapper(wrapper);
+                    }
+                });
+
+                document.getElementById('canvas-container').appendChild(wrapper);
+                imgEl.src = itemData.src;
+
+                // img サイズ確定後に wrapper サイズを合わせる
+                imgEl.addEventListener('load', () => {
+                    wrapper.style.width = imgEl.offsetWidth + 'px';
+                    wrapper.style.height = imgEl.offsetHeight + 'px';
+                });
+            }
         }
 
+        // ==========================================
+        // PC用：選択管理
+        // ==========================================
+        function selectWrapper(wrapper) {
+            deselectAll();
+            wrapper.classList.add('selected');
+            selectedWrapperId = wrapper.id;
+            bringToFront(wrapper);
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('.item-wrapper.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            selectedWrapperId = null;
+        }
+
+        // ==========================================
+        // PC用：四隅ハンドルで回転
+        // ==========================================
+        function attachRotateHandle(handle, wrapper) {
+            let startAngle = 0;
+            let startMouseAngle = 0;
+
+            handle.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+
+                startAngle = parseFloat(wrapper.getAttribute('data-angle')) || 0;
+
+                // wrapper の中心座標
+                const rect = wrapper.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+
+                // マウス開始角度
+                startMouseAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI);
+
+                const onMove = (e) => {
+                    const rect = wrapper.getBoundingClientRect();
+                    const cx = rect.left + rect.width / 2;
+                    const cy = rect.top + rect.height / 2;
+                    const currentMouseAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI);
+                    const delta = currentMouseAngle - startMouseAngle;
+                    const newAngle = startAngle + delta;
+                    wrapper.setAttribute('data-angle', newAngle);
+                    updateTransform(wrapper);
+                    updateState(wrapper.getAttribute('data-item-id'), { angle: newAngle });
+                };
+
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
+        // ==========================================
+        // PC用：ホイールで拡大縮小
+        // ==========================================
+        document.getElementById('canvas-container').addEventListener('wheel', (e) => {
+            if (IS_TOUCH) return;
+            e.preventDefault();
+
+            // ホイールが乗っている wrapper を探す
+            const target = e.target.closest('.item-wrapper');
+            if (!target) return;
+
+            const currentScale = parseFloat(target.getAttribute('data-scale')) || 1;
+            const delta = e.deltaY < 0 ? 1.05 : 0.95; // 上スクロール→拡大、下→縮小
+            const newScale = Math.max(0.1, Math.min(currentScale * delta, 5.0));
+
+            target.setAttribute('data-scale', newScale);
+            updateTransform(target);
+            updateState(target.getAttribute('data-item-id'), { scale: newScale });
+        }, { passive: false });
+
+        // ==========================================
+        // interact.js（移動 + iPadのピンチ回転）
+        // ==========================================
+        if (IS_TOUCH) {
+            // iPad: img 直接操作
+            interact('.canvas-item')
+                .draggable({
+                    listeners: {
+                        start(event) { bringToFront(event.target); },
+                        move(event) {
+                            const target = event.target;
+                            const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                            target.setAttribute('data-x', x);
+                            target.setAttribute('data-y', y);
+                            updateTransform(target);
+                            updateState(target.id, { x, y });
+                        }
+                    }
+                })
+                .gesturable({
+                    listeners: {
+                        start(event) {
+                            bringToFront(event.target);
+                            event.target.setAttribute('data-start-scale', event.target.getAttribute('data-scale') || 1);
+                        },
+                        move(event) {
+                            const target = event.target;
+                            const newAngle = (parseFloat(target.getAttribute('data-angle')) || 0) + event.da;
+                            target.setAttribute('data-angle', newAngle);
+                            let newScale = (parseFloat(target.getAttribute('data-start-scale')) || 1) * event.scale;
+                            newScale = Math.max(0.1, Math.min(newScale, 5.0));
+                            target.setAttribute('data-scale', newScale);
+                            updateTransform(target);
+                            updateState(target.id, { angle: newAngle, scale: newScale });
+                        }
+                    }
+                })
+                .on('down', function(event) { bringToFront(event.currentTarget); });
+        } else {
+            // PC: wrapper を操作
+            interact('.item-wrapper')
+                .draggable({
+                    listeners: {
+                        start(event) {
+                            selectWrapper(event.target);
+                        },
+                        move(event) {
+                            const target = event.target;
+                            const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                            target.setAttribute('data-x', x);
+                            target.setAttribute('data-y', y);
+                            updateTransform(target);
+                            updateState(target.getAttribute('data-item-id'), { x, y });
+                        }
+                    }
+                });
+        }
+
+        // ==========================================
+        // 画像読み込み
+        // ==========================================
         document.getElementById('input-bg').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -155,110 +411,127 @@
             e.target.value = '';
         });
 
-        // 複数ファイルを順番に処理（インデックスを使って offset を確定させる）
         document.getElementById('input-add').addEventListener('change', (e) => {
             const files = Array.from(e.target.files);
-            // 各ファイルに offset を事前割り当てしてからまとめて読み込む
-            files.forEach((file, i) => {
+            files.forEach((file) => {
                 const myOffset = placementOffset;
                 placementOffset += 30;
                 if (placementOffset > 100) placementOffset = -50;
-
                 const reader = new FileReader();
-                reader.onload = (event) => {
-                    addNewImageToState(event.target.result, myOffset);
-                };
+                reader.onload = (event) => { addNewImageToState(event.target.result, myOffset); };
                 reader.readAsDataURL(file);
             });
             e.target.value = '';
         });
 
-        // offset を引数で受け取る（非同期タイミングに依存しない）
         function addNewImageToState(src, offset) {
             const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
             zIndexCounter++;
-
             const itemData = { id, src, x: 0, y: 0, scale: 1, angle: 0, zIndex: zIndexCounter };
             appState.pages[appState.currentPageIndex].items.push(itemData);
 
-            // DOM 要素を作り、onload を先に登録してから src をセット
-            const imgEl = document.createElement('img');
-            imgEl.className = 'canvas-item';
-            imgEl.id = id;
-            imgEl.style.zIndex = zIndexCounter;
-            imgEl.style.opacity = '0';
-            imgEl.setAttribute('data-x', 0);
-            imgEl.setAttribute('data-y', 0);
-            imgEl.setAttribute('data-scale', 1);
-            imgEl.setAttribute('data-angle', 0);
-            updateTransform(imgEl);
-            document.getElementById('canvas-container').appendChild(imgEl);
-
-            // addEventListener で先に登録してから src をセット（Base64でも確実に発火）
-            imgEl.addEventListener('load', () => {
-                const maxW = window.innerWidth * 0.4;
-                const maxH = window.innerHeight * 0.4;
-                let optimalScale = 1;
-                if (imgEl.naturalWidth > maxW || imgEl.naturalHeight > maxH) {
-                    const scaleW = maxW / imgEl.naturalWidth;
-                    const scaleH = maxH / imgEl.naturalHeight;
-                    optimalScale = Math.min(scaleW, scaleH);
-                }
-                const displayWidth  = imgEl.naturalWidth  * optimalScale;
-                const displayHeight = imgEl.naturalHeight * optimalScale;
-
-                const startX = (window.innerWidth  / 2) - (displayWidth  / 2) + offset;
-                const startY = (window.innerHeight / 2) - (displayHeight / 2) + offset;
-
-                imgEl.setAttribute('data-x', startX);
-                imgEl.setAttribute('data-y', startY);
-                imgEl.setAttribute('data-scale', optimalScale);
-                itemData.x = startX;
-                itemData.y = startY;
-                itemData.scale = optimalScale;
-
+            // DOM要素を直接生成して配置（renderItem と同じ構造）
+            if (IS_TOUCH) {
+                const imgEl = document.createElement('img');
+                imgEl.className = 'canvas-item';
+                imgEl.id = id;
+                imgEl.style.zIndex = zIndexCounter;
+                imgEl.style.opacity = '0';
+                imgEl.setAttribute('data-x', 0);
+                imgEl.setAttribute('data-y', 0);
+                imgEl.setAttribute('data-scale', 1);
+                imgEl.setAttribute('data-angle', 0);
                 updateTransform(imgEl);
-                imgEl.style.opacity = '1';
-            });
+                document.getElementById('canvas-container').appendChild(imgEl);
 
-            imgEl.src = src;
+                imgEl.addEventListener('load', () => {
+                    const { startX, startY, optimalScale } = calcInitialPlacement(imgEl.naturalWidth, imgEl.naturalHeight, offset);
+                    imgEl.setAttribute('data-x', startX);
+                    imgEl.setAttribute('data-y', startY);
+                    imgEl.setAttribute('data-scale', optimalScale);
+                    itemData.x = startX; itemData.y = startY; itemData.scale = optimalScale;
+                    updateTransform(imgEl);
+                    imgEl.style.opacity = '1';
+                });
+                imgEl.src = src;
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'item-wrapper';
+                wrapper.id = 'wrapper_' + id;
+                wrapper.style.zIndex = zIndexCounter;
+                wrapper.style.opacity = '0';
+                wrapper.setAttribute('data-x', 0);
+                wrapper.setAttribute('data-y', 0);
+                wrapper.setAttribute('data-scale', 1);
+                wrapper.setAttribute('data-angle', 0);
+                wrapper.setAttribute('data-item-id', id);
+
+                const imgEl = document.createElement('img');
+                imgEl.className = 'canvas-item';
+                imgEl.id = id;
+                imgEl.style.position = 'relative';
+                imgEl.style.boxShadow = 'none';
+                imgEl.style.transform = 'none';
+
+                const border = document.createElement('div');
+                border.className = 'selection-border';
+
+                ['tl','tr','bl','br'].forEach(corner => {
+                    const handle = document.createElement('div');
+                    handle.className = 'rotate-handle ' + corner;
+                    handle.textContent = '↻';
+                    handle.setAttribute('data-corner', corner);
+                    attachRotateHandle(handle, wrapper);
+                    wrapper.appendChild(handle);
+                });
+
+                wrapper.appendChild(imgEl);
+                wrapper.appendChild(border);
+                updateTransform(wrapper);
+
+                wrapper.addEventListener('mousedown', (e) => {
+                    if (!e.target.classList.contains('rotate-handle')) {
+                        selectWrapper(wrapper);
+                    }
+                });
+
+                document.getElementById('canvas-container').appendChild(wrapper);
+
+                imgEl.addEventListener('load', () => {
+                    wrapper.style.width = imgEl.offsetWidth + 'px';
+                    wrapper.style.height = imgEl.offsetHeight + 'px';
+
+                    const { startX, startY, optimalScale } = calcInitialPlacement(imgEl.naturalWidth, imgEl.naturalHeight, offset);
+                    wrapper.setAttribute('data-x', startX);
+                    wrapper.setAttribute('data-y', startY);
+                    wrapper.setAttribute('data-scale', optimalScale);
+                    itemData.x = startX; itemData.y = startY; itemData.scale = optimalScale;
+                    updateTransform(wrapper);
+                    wrapper.style.opacity = '1';
+                    selectWrapper(wrapper); // 追加直後は選択状態に
+                });
+                imgEl.src = src;
+            }
         }
 
-        interact('.canvas-item')
-            .draggable({
-                listeners: {
-                    start(event) { bringToFront(event.target); },
-                    move(event) {
-                        const target = event.target;
-                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-                        target.setAttribute('data-x', x);
-                        target.setAttribute('data-y', y);
-                        updateTransform(target);
-                        updateState(target.id, { x, y });
-                    }
-                }
-            })
-            .gesturable({
-                listeners: {
-                    start(event) {
-                        bringToFront(event.target);
-                        event.target.setAttribute('data-start-scale', event.target.getAttribute('data-scale') || 1);
-                    },
-                    move(event) {
-                        const target = event.target;
-                        const newAngle = (parseFloat(target.getAttribute('data-angle')) || 0) + event.da;
-                        target.setAttribute('data-angle', newAngle);
-                        let newScale = (parseFloat(target.getAttribute('data-start-scale')) || 1) * event.scale;
-                        newScale = Math.max(0.1, Math.min(newScale, 5.0));
-                        target.setAttribute('data-scale', newScale);
-                        updateTransform(target);
-                        updateState(target.id, { angle: newAngle, scale: newScale });
-                    }
-                }
-            })
-            .on('down', function(event) { bringToFront(event.currentTarget); });
+        // 初期配置計算（共通）
+        function calcInitialPlacement(naturalW, naturalH, offset) {
+            const maxW = window.innerWidth * 0.4;
+            const maxH = window.innerHeight * 0.4;
+            let optimalScale = 1;
+            if (naturalW > maxW || naturalH > maxH) {
+                optimalScale = Math.min(maxW / naturalW, maxH / naturalH);
+            }
+            const displayWidth  = naturalW * optimalScale;
+            const displayHeight = naturalH * optimalScale;
+            const startX = (window.innerWidth  / 2) - (displayWidth  / 2) + offset;
+            const startY = (window.innerHeight / 2) - (displayHeight / 2) + offset;
+            return { startX, startY, optimalScale };
+        }
 
+        // ==========================================
+        // ユーティリティ
+        // ==========================================
         function updateTransform(target) {
             const x = target.getAttribute('data-x');
             const y = target.getAttribute('data-y');
@@ -271,7 +544,8 @@
             if (parseInt(target.style.zIndex, 10) < zIndexCounter) {
                 zIndexCounter++;
                 target.style.zIndex = zIndexCounter;
-                updateState(target.id, { zIndex: zIndexCounter });
+                const itemId = target.getAttribute('data-item-id') || target.id;
+                updateState(itemId, { zIndex: zIndexCounter });
             }
         }
 
