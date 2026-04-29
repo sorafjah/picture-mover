@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <!-- iPadでの勝手なズームやスクロールを完全に防ぐためのメタタグ -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- iPadのフルスクリーン（PWA）対応 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>画像操作アプリ</title>
     <!-- interact.jsのCDN読み込み -->
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
@@ -59,37 +62,96 @@
             border-radius: 8px; /* 角を少し丸く */
         }
 
-        /* ツールバーのスタイル（押しやすいデザイン） */
-        .toolbar {
+        /* 画面下部のナビゲーション・設定ボタン */
+        .nav-btn {
             position: absolute;
-            top: 20px;
+            bottom: 20px;
+            font-size: 30px;
+            color: rgba(0, 0, 0, 0.5);
+            background: rgba(255, 255, 255, 0.7);
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .nav-btn:active { background: rgba(255, 255, 255, 0.9); }
+        .nav-btn.left { left: 20px; }
+        .nav-btn.right { right: 20px; }
+        .nav-btn.disabled { opacity: 0.3; pointer-events: none; }
+
+        .settings-btn {
+            position: absolute;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
+            font-size: 40px;
+            color: rgba(0, 0, 0, 0.15); /* 薄く表示 */
             z-index: 9999;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            display: flex;
-            gap: 15px;
-            /* ツールバー上ではボタンクリックを通す */
+            cursor: pointer;
             touch-action: manipulation;
+            user-select: none;
         }
+        .settings-btn:active { color: rgba(0, 0, 0, 0.4); }
 
-        .toolbar button {
-            padding: 12px 24px;
-            font-size: 16px;
+        /* 設定モーダル */
+        #settings-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
+        .modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 280px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .modal-content button {
+            padding: 16px;
+            font-size: 18px;
             font-weight: bold;
             color: #fff;
             background-color: #007aff;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
+            touch-action: manipulation;
         }
-
-        .toolbar button:active {
-            background-color: #005bb5;
-            transform: scale(0.98);
+        .modal-content button:active { background-color: #005bb5; }
+        .modal-content button.close-btn { background-color: #8e8e93; }
+        .modal-content button.close-btn:active { background-color: #636366; }
+        
+        /* ページ番号表示 */
+        #page-indicator {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: bold;
+            color: rgba(0,0,0,0.5);
+            background: rgba(255,255,255,0.8);
+            padding: 8px 20px;
+            border-radius: 20px;
+            z-index: 9998;
+            pointer-events: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
         /* ファイル入力（非表示） */
@@ -100,10 +162,21 @@
 </head>
 <body>
 
-    <!-- ツールバー -->
-    <div class="toolbar">
-        <button id="btn-bg">背景を変更</button>
-        <button id="btn-add">画像を追加</button>
+    <!-- ページ番号 -->
+    <div id="page-indicator">1ページ</div>
+
+    <!-- 画面下部コントロール -->
+    <div id="btn-prev" class="nav-btn left disabled">◁</div>
+    <div id="btn-settings" class="settings-btn">⚙</div>
+    <div id="btn-next" class="nav-btn right">▷</div>
+
+    <!-- 設定モーダル -->
+    <div id="settings-modal">
+        <div class="modal-content">
+            <button id="btn-bg">背景を変更</button>
+            <button id="btn-add">画像を追加</button>
+            <button id="btn-close-modal" class="close-btn">閉じる</button>
+        </div>
     </div>
 
     <!-- 非表示のファイルアップロードinput -->
@@ -118,7 +191,7 @@
 
     <script>
         // ==========================================
-        // 状態管理（将来的な複数ページ対応を見据えた設計）
+        // 状態管理（複数ページ対応）
         // ==========================================
         const appState = {
             pages: [
@@ -134,15 +207,96 @@
         let zIndexCounter = 10; // 最前面への移動用カウンター
 
         // ==========================================
-        // UIイベントのバインド
+        // UIイベントのバインド (モーダルとページ切り替え)
         // ==========================================
+        const modal = document.getElementById('settings-modal');
+        
+        document.getElementById('btn-settings').addEventListener('click', () => {
+            modal.style.display = 'flex';
+        });
+        document.getElementById('btn-close-modal').addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
         document.getElementById('btn-bg').addEventListener('click', () => {
             document.getElementById('input-bg').click();
+            modal.style.display = 'none'; // 選択ダイアログを開いたらモーダルは閉じる
         });
 
         document.getElementById('btn-add').addEventListener('click', () => {
             document.getElementById('input-add').click();
+            modal.style.display = 'none';
         });
+
+        // ページ移動イベント
+        document.getElementById('btn-prev').addEventListener('click', () => {
+            if (appState.currentPageIndex > 0) {
+                appState.currentPageIndex--;
+                renderPage();
+            }
+        });
+
+        document.getElementById('btn-next').addEventListener('click', () => {
+            appState.currentPageIndex++;
+            // 次のページが存在しなければ新規作成
+            if (appState.currentPageIndex >= appState.pages.length) {
+                appState.pages.push({
+                    id: 'page-' + (appState.currentPageIndex + 1),
+                    background: null,
+                    items: []
+                });
+            }
+            renderPage();
+        });
+
+        // ==========================================
+        // 描画ロジック（ページ切り替え対応）
+        // ==========================================
+        function renderPage() {
+            const page = appState.pages[appState.currentPageIndex];
+            
+            // 背景の更新
+            if (page.background) {
+                document.getElementById('background').style.backgroundImage = `url('${page.background}')`;
+            } else {
+                document.getElementById('background').style.backgroundImage = 'none';
+            }
+
+            // キャンバスのクリア（前ページの画像を消す）
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = '';
+
+            // 現在のページのアイテムを再配置
+            page.items.forEach(itemData => {
+                renderItem(itemData);
+            });
+
+            // UIの更新
+            document.getElementById('page-indicator').textContent = `${appState.currentPageIndex + 1}ページ`;
+            // 1ページ目の時は「◁」を薄くして押せなくする
+            if (appState.currentPageIndex === 0) {
+                document.getElementById('btn-prev').classList.add('disabled');
+            } else {
+                document.getElementById('btn-prev').classList.remove('disabled');
+            }
+        }
+
+        // 単一のアイテムをDOMに生成して配置する関数
+        function renderItem(itemData) {
+            const imgEl = document.createElement('img');
+            imgEl.src = itemData.src;
+            imgEl.className = 'canvas-item';
+            imgEl.id = itemData.id;
+            imgEl.style.zIndex = itemData.zIndex;
+            
+            imgEl.setAttribute('data-x', itemData.x);
+            imgEl.setAttribute('data-y', itemData.y);
+            imgEl.setAttribute('data-scale', itemData.scale);
+            imgEl.setAttribute('data-angle', itemData.angle);
+            
+            updateTransform(imgEl);
+            document.getElementById('canvas-container').appendChild(imgEl);
+        }
 
         // ==========================================
         // 画像読み込み処理
@@ -170,7 +324,7 @@
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const imgSrc = event.target.result;
-                    addImageToCanvas(imgSrc);
+                    addNewImageToState(imgSrc);
                 };
                 reader.readAsDataURL(file);
             });
@@ -178,9 +332,9 @@
         });
 
         // ==========================================
-        // キャンバスへの画像追加と配置
+        // キャンバスへの新規画像追加（状態更新）
         // ==========================================
-        function addImageToCanvas(src) {
+        function addNewImageToState(src) {
             const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
             
             // 初期配置（画面の中央付近）
@@ -200,23 +354,11 @@
             };
             appState.pages[appState.currentPageIndex].items.push(itemData);
 
-            // DOM要素の生成
-            const imgEl = document.createElement('img');
-            imgEl.src = src;
-            imgEl.className = 'canvas-item';
-            imgEl.id = id;
-            imgEl.style.zIndex = itemData.zIndex;
-            
-            // カスタムデータ属性に現在の状態を保持
-            imgEl.setAttribute('data-x', startX);
-            imgEl.setAttribute('data-y', startY);
-            imgEl.setAttribute('data-scale', 1);
-            imgEl.setAttribute('data-angle', 0);
-            
-            // 初期の座標を適用
-            updateTransform(imgEl);
+            // 画面に描画
+            renderItem(itemData);
 
-            // 画像が読み込まれたら、画面幅に合わせて初期サイズを最適化
+            // 描画された要素を取得し、画面幅に合わせて初期サイズを最適化
+            const imgEl = document.getElementById(id);
             imgEl.onload = () => {
                 const maxW = window.innerWidth * 0.4; // 画面幅の40%を最大値とする
                 if (imgEl.naturalWidth > maxW) {
@@ -226,8 +368,6 @@
                     updateTransform(imgEl);
                 }
             };
-
-            document.getElementById('canvas-container').appendChild(imgEl);
         }
 
         // ==========================================
