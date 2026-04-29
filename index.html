@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- iPadでの勝手なズームやスクロールを完全に防ぐためのメタタグ -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>画像操作アプリ</title>
+    <!-- interact.jsのCDN読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <style>
+        /* デフォルトのブラウザ挙動をリセットし、タッチ操作を無効化 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #e0e0e0;
+            /* スワイプ戻るやダブルタップズームを防止 */
+            touch-action: none; 
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* 背景画像エリア */
+        #background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            z-index: 0;
+            pointer-events: none; /* 背景はタッチ判定させない */
+        }
+
+        /* キャンバスエリア（操作する画像を配置） */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* 操作する画像（アイテム）のスタイル */
+        .canvas-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: center center;
+            /* 影をつけて重なりを見やすくする */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border-radius: 8px; /* 角を少し丸く */
+        }
+
+        /* ツールバーのスタイル（押しやすいデザイン） */
+        .toolbar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 15px;
+            /* ツールバー上ではボタンクリックを通す */
+            touch-action: manipulation;
+        }
+
+        .toolbar button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007aff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .toolbar button:active {
+            background-color: #005bb5;
+            transform: scale(0.98);
+        }
+
+        /* ファイル入力（非表示） */
+        .hidden-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ツールバー -->
+    <div class="toolbar">
+        <button id="btn-bg">背景を変更</button>
+        <button id="btn-add">画像を追加</button>
+    </div>
+
+    <!-- 非表示のファイルアップロードinput -->
+    <input type="file" id="input-bg" class="hidden-input" accept="image/*">
+    <input type="file" id="input-add" class="hidden-input" accept="image/*" multiple>
+
+    <!-- 背景表示エリア -->
+    <div id="background"></div>
+
+    <!-- 画像配置エリア -->
+    <div id="canvas-container"></div>
+
+    <script>
+        // ==========================================
+        // 状態管理（将来的な複数ページ対応を見据えた設計）
+        // ==========================================
+        const appState = {
+            pages: [
+                {
+                    id: 'page-1',
+                    background: null,
+                    items: [] // 画像データ：{ id, src, x, y, scale, angle, zIndex }
+                }
+            ],
+            currentPageIndex: 0 // 現在のページ
+        };
+
+        let zIndexCounter = 10; // 最前面への移動用カウンター
+
+        // ==========================================
+        // UIイベントのバインド
+        // ==========================================
+        document.getElementById('btn-bg').addEventListener('click', () => {
+            document.getElementById('input-bg').click();
+        });
+
+        document.getElementById('btn-add').addEventListener('click', () => {
+            document.getElementById('input-add').click();
+        });
+
+        // ==========================================
+        // 画像読み込み処理
+        // ==========================================
+        
+        // 1. 背景画像の設定
+        document.getElementById('input-bg').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const bgUrl = event.target.result;
+                document.getElementById('background').style.backgroundImage = `url('${bgUrl}')`;
+                // 状態に保存
+                appState.pages[appState.currentPageIndex].background = bgUrl;
+            };
+            reader.readAsDataURL(file);
+            e.target.value = ''; // リセット
+        });
+
+        // 2. 複数画像の追加
+        document.getElementById('input-add').addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const imgSrc = event.target.result;
+                    addImageToCanvas(imgSrc);
+                };
+                reader.readAsDataURL(file);
+            });
+            e.target.value = ''; // リセット
+        });
+
+        // ==========================================
+        // キャンバスへの画像追加と配置
+        // ==========================================
+        function addImageToCanvas(src) {
+            const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
+            
+            // 初期配置（画面の中央付近）
+            const startX = window.innerWidth / 2 - 100;
+            const startY = window.innerHeight / 2 - 100;
+            zIndexCounter++;
+
+            // 状態（データ）を保存
+            const itemData = {
+                id: id,
+                src: src,
+                x: startX,
+                y: startY,
+                scale: 1,
+                angle: 0,
+                zIndex: zIndexCounter
+            };
+            appState.pages[appState.currentPageIndex].items.push(itemData);
+
+            // DOM要素の生成
+            const imgEl = document.createElement('img');
+            imgEl.src = src;
+            imgEl.className = 'canvas-item';
+            imgEl.id = id;
+            imgEl.style.zIndex = itemData.zIndex;
+            
+            // カスタムデータ属性に現在の状態を保持
+            imgEl.setAttribute('data-x', startX);
+            imgEl.setAttribute('data-y', startY);
+            imgEl.setAttribute('data-scale', 1);
+            imgEl.setAttribute('data-angle', 0);
+            
+            // 初期の座標を適用
+            updateTransform(imgEl);
+
+            // 画像が読み込まれたら、画面幅に合わせて初期サイズを最適化
+            imgEl.onload = () => {
+                const maxW = window.innerWidth * 0.4; // 画面幅の40%を最大値とする
+                if (imgEl.naturalWidth > maxW) {
+                    const optimalScale = maxW / imgEl.naturalWidth;
+                    imgEl.setAttribute('data-scale', optimalScale);
+                    itemData.scale = optimalScale;
+                    updateTransform(imgEl);
+                }
+            };
+
+            document.getElementById('canvas-container').appendChild(imgEl);
+        }
+
+        // ==========================================
+        // ジェスチャー操作 (interact.js の設定)
+        // ==========================================
+        interact('.canvas-item')
+            .draggable({
+                listeners: {
+                    start(event) {
+                        bringToFront(event.target);
+                    },
+                    move(event) {
+                        const target = event.target;
+                        // 現在のx,yに移動量を足す
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                        
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                        
+                        updateTransform(target);
+                        updateState(target.id, { x, y });
+                    }
+                }
+            })
+            .gesturable({
+                listeners: {
+                    start(event) {
+                        bringToFront(event.target);
+                        // ピンチ操作開始時のスケールを記録
+                        const target = event.target;
+                        target.setAttribute('data-start-scale', target.getAttribute('data-scale') || 1);
+                    },
+                    move(event) {
+                        const target = event.target;
+                        
+                        // 回転の計算 (event.da は角度の変化量)
+                        const currentAngle = parseFloat(target.getAttribute('data-angle')) || 0;
+                        const newAngle = currentAngle + event.da;
+                        target.setAttribute('data-angle', newAngle);
+
+                        // 拡大縮小の計算 (event.scale は開始時からの相対倍率)
+                        const startScale = parseFloat(target.getAttribute('data-start-scale')) || 1;
+                        let newScale = startScale * event.scale;
+                        
+                        // 大きすぎ・小さすぎを防ぐ（10% 〜 500%）
+                        newScale = Math.max(0.1, Math.min(newScale, 5.0));
+                        target.setAttribute('data-scale', newScale);
+
+                        updateTransform(target);
+                        updateState(target.id, { angle: newAngle, scale: newScale });
+                    }
+                }
+            })
+            .on('down', function (event) {
+                // タッチした瞬間に最前面へ持ってくる
+                bringToFront(event.currentTarget);
+            });
+
+        // ==========================================
+        // ユーティリティ関数
+        // ==========================================
+        
+        // DOMのスタイルを更新
+        function updateTransform(target) {
+            const x = target.getAttribute('data-x');
+            const y = target.getAttribute('data-y');
+            const scale = target.getAttribute('data-scale');
+            const angle = target.getAttribute('data-angle');
+            
+            target.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) scale(${scale})`;
+        }
+
+        // タッチした画像を最前面にする
+        function bringToFront(target) {
+            const currentZ = parseInt(target.style.zIndex, 10) || 0;
+            if (currentZ < zIndexCounter) {
+                zIndexCounter++;
+                target.style.zIndex = zIndexCounter;
+                updateState(target.id, { zIndex: zIndexCounter });
+            }
+        }
+
+        // appState（データ配列）を更新する（将来の保存機能のため）
+        function updateState(id, updates) {
+            const items = appState.pages[appState.currentPageIndex].items;
+            const item = items.find(i => i.id === id);
+            if (item) {
+                Object.assign(item, updates);
+            }
+        }
+    </script>
+</body>
+</html>
