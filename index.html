@@ -318,9 +318,15 @@
                 if (settled) return;
                 settled = true;
 
+                // ★ 修正: iPadで window.innerWidth が実画面より大きい値を返すことがあるので
+                // 実際のコンテナサイズを使う
+                const container = document.getElementById('canvas-container');
+                const viewW = container.clientWidth || document.documentElement.clientWidth || window.innerWidth;
+                const viewH = container.clientHeight || document.documentElement.clientHeight || window.innerHeight;
+
                 // サイズ計算
-                const maxW = window.innerWidth * 0.4;
-                const maxH = window.innerHeight * 0.4;
+                const maxW = viewW * 0.4;
+                const maxH = viewH * 0.4;
                 let optimalScale = 1;
 
                 // naturalWidth/Height が0の場合の保険
@@ -336,8 +342,8 @@
                 const displayWidth = nw * optimalScale;
                 const displayHeight = nh * optimalScale;
 
-                const startX = (window.innerWidth / 2) - (displayWidth / 2) + placementOffset;
-                const startY = (window.innerHeight / 2) - (displayHeight / 2) + placementOffset;
+                const startX = (viewW / 2) - (displayWidth / 2) + placementOffset;
+                const startY = (viewH / 2) - (displayHeight / 2) + placementOffset;
 
                 placementOffset += 30;
                 if (placementOffset > 100) {
