@@ -34,7 +34,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-size: cover;
+            background-size: contain; /* 画像を見切れずに画面にちょうど収める */
             background-position: center;
             background-repeat: no-repeat;
             z-index: 0;
@@ -66,12 +66,11 @@
         .nav-btn {
             position: absolute;
             bottom: 20px;
-            font-size: 30px;
-            color: rgba(0, 0, 0, 0.5);
-            background: rgba(255, 255, 255, 0.7);
+            font-size: 40px;
+            color: rgba(0, 0, 0, 0.4); /* シンプルな色合いに */
+            background: transparent; /* 背景の丸を透明に */
             width: 50px;
             height: 50px;
-            border-radius: 25px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -79,12 +78,11 @@
             cursor: pointer;
             touch-action: manipulation;
             user-select: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .nav-btn:active { background: rgba(255, 255, 255, 0.9); }
+        .nav-btn:active { color: rgba(0, 0, 0, 0.8); }
         .nav-btn.left { left: 20px; }
         .nav-btn.right { right: 20px; }
-        .nav-btn.disabled { opacity: 0.3; pointer-events: none; }
+        .nav-btn.disabled { opacity: 0.1; pointer-events: none; }
 
         .settings-btn {
             position: absolute;
@@ -92,13 +90,14 @@
             left: 50%;
             transform: translateX(-50%);
             font-size: 40px;
-            color: rgba(0, 0, 0, 0.15); /* 薄く表示 */
+            color: #000;
+            opacity: 0.15; /* 確実に薄く表示させる */
             z-index: 9999;
             cursor: pointer;
             touch-action: manipulation;
             user-select: none;
         }
-        .settings-btn:active { color: rgba(0, 0, 0, 0.4); }
+        .settings-btn:active { opacity: 0.4; }
 
         /* 設定モーダル */
         #settings-modal {
@@ -134,25 +133,10 @@
             touch-action: manipulation;
         }
         .modal-content button:active { background-color: #005bb5; }
+        .modal-content button#btn-add-page { background-color: #34c759; } /* ページ追加ボタンは緑色に */
+        .modal-content button#btn-add-page:active { background-color: #248a3d; }
         .modal-content button.close-btn { background-color: #8e8e93; }
         .modal-content button.close-btn:active { background-color: #636366; }
-        
-        /* ページ番号表示 */
-        #page-indicator {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 18px;
-            font-weight: bold;
-            color: rgba(0,0,0,0.5);
-            background: rgba(255,255,255,0.8);
-            padding: 8px 20px;
-            border-radius: 20px;
-            z-index: 9998;
-            pointer-events: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
 
         /* ファイル入力（非表示） */
         .hidden-input {
@@ -162,19 +146,17 @@
 </head>
 <body>
 
-    <!-- ページ番号 -->
-    <div id="page-indicator">1ページ</div>
-
     <!-- 画面下部コントロール -->
     <div id="btn-prev" class="nav-btn left disabled">◁</div>
     <div id="btn-settings" class="settings-btn">⚙</div>
-    <div id="btn-next" class="nav-btn right">▷</div>
+    <div id="btn-next" class="nav-btn right disabled">▷</div>
 
     <!-- 設定モーダル -->
     <div id="settings-modal">
         <div class="modal-content">
             <button id="btn-bg">背景を変更</button>
             <button id="btn-add">画像を追加</button>
+            <button id="btn-add-page">新しいページを追加</button>
             <button id="btn-close-modal" class="close-btn">閉じる</button>
         </div>
     </div>
@@ -205,6 +187,7 @@
         };
 
         let zIndexCounter = 10; // 最前面への移動用カウンター
+        let placementOffset = 0; // 複数追加時に画像をずらすための数値
 
         // ==========================================
         // UIイベントのバインド (モーダルとページ切り替え)
@@ -228,6 +211,19 @@
             modal.style.display = 'none';
         });
 
+        // 新しいページを追加
+        document.getElementById('btn-add-page').addEventListener('click', () => {
+            appState.pages.push({
+                id: 'page-' + (appState.pages.length + 1),
+                background: null,
+                items: []
+            });
+            // 追加した新しいページにすぐ移動する
+            appState.currentPageIndex = appState.pages.length - 1;
+            renderPage();
+            modal.style.display = 'none';
+        });
+
         // ページ移動イベント
         document.getElementById('btn-prev').addEventListener('click', () => {
             if (appState.currentPageIndex > 0) {
@@ -237,16 +233,10 @@
         });
 
         document.getElementById('btn-next').addEventListener('click', () => {
-            appState.currentPageIndex++;
-            // 次のページが存在しなければ新規作成
-            if (appState.currentPageIndex >= appState.pages.length) {
-                appState.pages.push({
-                    id: 'page-' + (appState.currentPageIndex + 1),
-                    background: null,
-                    items: []
-                });
+            if (appState.currentPageIndex < appState.pages.length - 1) {
+                appState.currentPageIndex++;
+                renderPage();
             }
-            renderPage();
         });
 
         // ==========================================
@@ -271,13 +261,17 @@
                 renderItem(itemData);
             });
 
-            // UIの更新
-            document.getElementById('page-indicator').textContent = `${appState.currentPageIndex + 1}ページ`;
-            // 1ページ目の時は「◁」を薄くして押せなくする
+            // ◁ ▷ のボタンを押せる・押せない（透明度）の制御
             if (appState.currentPageIndex === 0) {
                 document.getElementById('btn-prev').classList.add('disabled');
             } else {
                 document.getElementById('btn-prev').classList.remove('disabled');
+            }
+
+            if (appState.currentPageIndex >= appState.pages.length - 1) {
+                document.getElementById('btn-next').classList.add('disabled');
+            } else {
+                document.getElementById('btn-next').classList.remove('disabled');
             }
         }
 
@@ -337,9 +331,16 @@
         function addNewImageToState(src) {
             const id = 'item_' + Date.now() + Math.floor(Math.random() * 1000);
             
-            // 初期配置（画面の中央付近）
-            const startX = window.innerWidth / 2 - 100;
-            const startY = window.innerHeight / 2 - 100;
+            // 初期配置（重ならないように少しずつ右下にずらす）
+            const startX = (window.innerWidth / 2 - 100) + placementOffset;
+            const startY = (window.innerHeight / 2 - 100) + placementOffset;
+            
+            // 次の画像のためにずらす量を増やす（150pxを超えたら元に戻す）
+            placementOffset += 30;
+            if (placementOffset > 150) {
+                placementOffset = 0;
+            }
+
             zIndexCounter++;
 
             // 状態（データ）を保存
