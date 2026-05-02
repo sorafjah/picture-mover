@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<title>画像・テキストキャンバス</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>画像・テキストキャンバス(PC用)</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -12,7 +12,6 @@
     height: 100vh;
     overflow: hidden;
     font-family: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif;
-    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
   }
@@ -30,7 +29,6 @@
     width: 100%;
     height: 100%;
     display: none;
-    touch-action: none;
     overflow: hidden;
   }
 
@@ -56,10 +54,12 @@
   /* 画像とテキストの共通スタイル */
   .img-item, .text-item {
     position: absolute;
-    touch-action: none;
+    cursor: grab;
     will-change: transform;
-    border: 2px solid transparent;
+    /* 枠線を完全に消すために border を削除 */
   }
+
+  .img-item:active, .text-item:active { cursor: grabbing; }
 
   .img-item img {
     display: block;
@@ -74,23 +74,13 @@
   /* テキスト特有のスタイル */
   .text-item {
     padding: 8px;
-    font-size: 32px; /* 基本サイズ。ピンチで拡大縮小されます */
+    font-size: 32px;
     white-space: pre-wrap; /* 改行を反映 */
     min-width: 1em;
     min-height: 1em;
   }
 
-  /* 選択時のハイライト（画像のみ） */
-  .img-item.selected {
-    border-color: rgba(60,120,220,0.5);
-    box-shadow: 0 0 0 1px rgba(60,120,220,0.2);
-    border-radius: 4px;
-  }
-
-  /* テキストは選択時の枠線をなくす */
-  .text-item.selected {
-    border: 2px solid transparent;
-  }
+  /* 選択時のハイライトスタイルを削除（画像・テキスト共に枠線なし） */
 
   /* 歯車ボタン */
   #gear-btn {
@@ -110,7 +100,6 @@
     font-size: 20px;
     opacity: 0.35;
     transition: opacity 0.2s, transform 0.35s ease;
-    -webkit-tap-highlight-color: transparent;
   }
 
   #gear-btn.open {
@@ -118,7 +107,7 @@
     transform: translateX(-50%) rotate(65deg);
   }
 
-  #gear-btn:active { opacity: 0.8; }
+  #gear-btn:hover { opacity: 0.6; }
 
   /* 設定パネル */
   #settings-panel {
@@ -127,7 +116,7 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 1900;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.93);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(0,0,0,0.07);
@@ -136,7 +125,7 @@
     display: none;
     flex-direction: column;
     gap: 2px;
-    min-width: 160px;
+    min-width: 170px;
     max-height: 70vh; /* 画面に収まらない場合に備える */
     overflow-y: auto; /* スクロール可能にする */
     box-shadow: 0 6px 28px rgba(0,0,0,0.1);
@@ -155,11 +144,11 @@
     cursor: pointer;
     text-align: left;
     white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
     transition: background 0.12s;
   }
 
-  .sp-btn:active { background: rgba(0,0,0,0.07); }
+  .sp-btn:hover { background: rgba(0,0,0,0.05); }
+  .sp-btn:active { background: rgba(0,0,0,0.09); }
   .sp-btn.danger { color: #c0392b; }
 
   .sp-divider {
@@ -186,7 +175,7 @@
     padding: 20px;
     border-radius: 16px;
     width: 90%;
-    max-width: 320px;
+    max-width: 400px;
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -195,12 +184,12 @@
 
   #text-input {
     width: 100%;
-    height: 80px;
+    height: 100px;
     padding: 10px;
     font-size: 16px;
     border: 1px solid #ccc;
     border-radius: 8px;
-    resize: none;
+    resize: vertical;
     font-family: inherit;
   }
 
@@ -215,6 +204,7 @@
     padding: 4px;
     border-radius: 4px;
     border: 1px solid #ccc;
+    cursor: pointer;
   }
 
   .tm-actions {
@@ -232,17 +222,19 @@
     cursor: pointer;
     font-size: 14px;
     font-weight: bold;
-    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
   }
 
-  .tm-btn:active { background: #e0e0e0; }
+  .tm-btn:hover { background: #e0e0e0; }
+  .tm-btn:active { background: #d0d0d0; }
 
   .tm-btn-primary {
     background: #3c78dc;
     color: #fff;
   }
   
-  .tm-btn-primary:active { background: #2b61b8; }
+  .tm-btn-primary:hover { background: #3264b8; }
+  .tm-btn-primary:active { background: #2b56a0; }
 
 
   /* ページナビ */
@@ -256,23 +248,25 @@
     color: rgba(0,0,0,0.16);
     padding: 14px 14px;
     cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
     transition: color 0.15s;
     line-height: 1;
   }
 
   #nav-prev { left: 2px; }
   #nav-next { right: 2px; }
-  #nav-prev:active, #nav-next:active { color: rgba(0,0,0,0.45); }
+  #nav-prev:hover, #nav-next:hover { color: rgba(0,0,0,0.4); }
 
   #bg-input, #img-input { display: none; }
+
+  /* カーソル：回転モード */
+  body.rotate-mode .img-item.selected,
+  body.rotate-mode .text-item.selected { cursor: crosshair; }
 </style>
 </head>
 <body>
 
 <div id="canvas-wrap"></div>
 
-<!-- 歯車ボタンと設定パネル -->
 <button id="gear-btn" onclick="toggleSettings()">⚙️</button>
 
 <div id="settings-panel">
@@ -372,12 +366,15 @@ function createPageDOM() {
   bg.appendChild(bgImg);
   page.appendChild(bg);
 
-  // 背景タップで選択解除
-  page.addEventListener('touchstart', (e) => {
+  // 背景クリック・タッチで選択解除
+  const deselectFn = (e) => {
     if (e.target === page || e.target === bg || e.target === bgImg) {
       deselectAll();
+      closeSettings();
     }
-  }, { passive: false });
+  };
+  page.addEventListener('mousedown', deselectFn);
+  page.addEventListener('touchstart', deselectFn, { passive: true });
 
   canvasWrap.appendChild(page);
   return page;
@@ -406,7 +403,7 @@ function goPage(dir) {
 
 function deletePage() {
   if (pages.length === 1) {
-    // 最後の1ページの場合は削除せず、白紙にリセットする
+    // 最後の1ページの場合は白紙にリセット
     const page = pages[0].dom;
     const bgImg = page.querySelector('.page-bg img');
     bgImg.src = '';
@@ -425,7 +422,7 @@ function deletePage() {
   // 配列から削除
   pages.splice(currentPage, 1);
   
-  // ページインデックスの調整
+  // ページインデックス調整
   if (currentPage >= pages.length) {
     currentPage = pages.length - 1;
   }
@@ -449,18 +446,20 @@ function closeSettings() {
   gearBtn.classList.remove('open');
 }
 
-// パネル外タップで閉じる（モーダル表示中は除く）
-document.addEventListener('touchstart', (e) => {
+// モーダル表示中はパネル外クリックで閉じないようにする（PC/iPad両対応）
+const closeSettingsFn = (e) => {
   const modalOverlay = document.getElementById('text-modal-overlay');
   if (modalOverlay.classList.contains('open')) return;
-  
+
   if (!settingsPanel.contains(e.target) && e.target !== gearBtn) {
     closeSettings();
   }
-}, { passive: true });
+};
+document.addEventListener('mousedown', closeSettingsFn);
+document.addEventListener('touchstart', closeSettingsFn, { passive: true });
 
 // ========================
-// 背景・画像追加
+// 背景
 // ========================
 function triggerBg() {
   document.getElementById('bg-input').click();
@@ -483,6 +482,9 @@ function removeBg() {
   closeSettings();
 }
 
+// ========================
+// 画像追加
+// ========================
 function triggerImg() {
   document.getElementById('img-input').click();
   closeSettings();
@@ -507,8 +509,8 @@ function addImageItem(file) {
 
   img.onload = () => {
     const page = pages[currentPage].dom;
-    const cx = page.clientWidth / 2 + (Math.random() - 0.5) * 50;
-    const cy = page.clientHeight / 2 + (Math.random() - 0.5) * 50;
+    const cx = page.clientWidth / 2 + (Math.random() - 0.5) * 100;
+    const cy = page.clientHeight / 2 + (Math.random() - 0.5) * 100;
     state.x = cx - Math.min(img.naturalWidth, 300) / 2;
     state.y = cy - Math.min(img.naturalHeight, 300) / 2;
     applyTransform(item, state);
@@ -516,7 +518,11 @@ function addImageItem(file) {
 
   item.appendChild(img);
   pages[currentPage].dom.appendChild(item);
+  
+  // PC用・iPad用両方の操作を登録
+  attachMouseHandlers(item, state);
   attachTouchHandlers(item, state);
+  
   selectItem(item);
 }
 
@@ -526,6 +532,8 @@ function addImageItem(file) {
 function openTextModal() {
   document.getElementById('text-modal-overlay').classList.add('open');
   document.getElementById('text-input').value = '';
+  // PC版なので表示時にフォーカスを当てる
+  setTimeout(() => document.getElementById('text-input').focus(), 50);
   closeSettings();
 }
 
@@ -545,7 +553,7 @@ function addTextItem() {
 
   const item = document.createElement('div');
   item.className = 'text-item';
-  item.textContent = textInput; // 改行は white-space: pre-wrap で維持されます
+  item.textContent = textInput;
   item.style.color = color;
   item.style.fontFamily = font;
 
@@ -555,7 +563,7 @@ function addTextItem() {
   const page = pages[currentPage].dom;
   page.appendChild(item);
 
-  // 要素がDOMに追加された直後にサイズを測り、画面中央に配置
+  // 要素がDOMに追加された直後にサイズを測り配置
   requestAnimationFrame(() => {
     const cx = page.clientWidth / 2;
     const cy = page.clientHeight / 2;
@@ -564,18 +572,24 @@ function addTextItem() {
     applyTransform(item, state);
   });
 
+  // PC用・iPad用両方の操作を登録
+  attachMouseHandlers(item, state);
   attachTouchHandlers(item, state);
+
   selectItem(item);
   closeTextModal();
 }
 
 // ========================
-// 変換・選択・削除
+// 変換
 // ========================
 function applyTransform(el, s) {
   el.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rotate}deg) scale(${s.scale})`;
 }
 
+// ========================
+// 選択・削除
+// ========================
 function selectItem(item) {
   if (selectedItem && selectedItem !== item) {
     selectedItem.classList.remove('selected');
@@ -600,7 +614,69 @@ function deleteSelected() {
 }
 
 // ========================
-// タッチ処理 (画像・テキスト共通)
+// マウス操作 (画像・テキスト共通)
+// ========================
+function attachMouseHandlers(el, state) {
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectItem(el);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startStateX = state.x;
+    const startStateY = state.y;
+    const startRotate = state.rotate;
+
+    // アイテム中心座標（画面上）
+    const rect = el.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const isRotate = e.shiftKey || e.button === 2;
+
+    // 回転モード：マウスダウン時の角度を基準に
+    const startAngle = isRotate
+      ? Math.atan2(startY - centerY, startX - centerX) * 180 / Math.PI
+      : 0;
+
+    const onMove = (me) => {
+      if (isRotate) {
+        // 中心からの角度差で回転
+        const curAngle = Math.atan2(me.clientY - centerY, me.clientX - centerX) * 180 / Math.PI;
+        state.rotate = startRotate + (curAngle - startAngle);
+      } else {
+        state.x = startStateX + (me.clientX - startX);
+        state.y = startStateY + (me.clientY - startY);
+      }
+      applyTransform(el, state);
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 右クリックメニュー抑制
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // ホイールで拡大縮小
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectItem(el);
+    const delta = e.deltaY > 0 ? 0.92 : 1.09;
+    state.scale = Math.max(0.05, Math.min(20, state.scale * delta));
+    applyTransform(el, state);
+  }, { passive: false });
+}
+
+// ========================
+// タッチ操作 (iPad・スマホ用)
 // ========================
 function attachTouchHandlers(el, state) {
   let touches = {};
@@ -662,7 +738,7 @@ function attachTouchHandlers(el, state) {
       const curMidY = (a.y + b.y) / 2;
 
       if (lastDist !== null) {
-        state.scale = Math.max(0.1, Math.min(20, state.scale * (curDist / lastDist)));
+        state.scale = Math.max(0.05, Math.min(20, state.scale * (curDist / lastDist)));
       }
       if (lastAngle !== null) {
         state.rotate += curAngle - lastAngle;
@@ -696,7 +772,7 @@ function attachTouchHandlers(el, state) {
 function vDist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
 function vAngle(a, b) { return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; }
 
-// ダブルタップズーム無効化
+// 誤作動防止（ダブルタップズーム無効化など）
 document.addEventListener('touchstart', (e) => {
   if (e.touches.length > 1) e.preventDefault();
 }, { passive: false });
@@ -707,6 +783,39 @@ document.addEventListener('touchend', (e) => {
   if (now - lastDocTouch < 300) e.preventDefault();
   lastDocTouch = now;
 }, { passive: false });
+
+
+// キーボードショートカット
+document.addEventListener('keydown', (e) => {
+  // Delete / Backspace で選択削除
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItem) {
+    // input や textarea にフォーカスがある場合は削除を発動させない
+    const activeTag = document.activeElement.tagName;
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+    deleteSelected();
+  }
+
+  // 矢印キーで微調整移動
+  if (selectedItem && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+    const s = selectedItem._state;
+    const step = e.shiftKey ? 10 : 1;
+    if (e.key === 'ArrowLeft')  s.x -= step;
+    if (e.key === 'ArrowRight') s.x += step;
+    if (e.key === 'ArrowUp')    s.y -= step;
+    if (e.key === 'ArrowDown')  s.y += step;
+    applyTransform(selectedItem, s);
+    e.preventDefault();
+  }
+
+  // [ / ] で回転
+  if (selectedItem && (e.key === '[' || e.key === ']')) {
+    const s = selectedItem._state;
+    const step = e.shiftKey ? 15 : 5;
+    s.rotate += e.key === ']' ? step : -step;
+    applyTransform(selectedItem, s);
+    e.preventDefault();
+  }
+});
 </script>
 </body>
 </html>
