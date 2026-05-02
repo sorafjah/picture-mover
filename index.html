@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<title>画像キャンバス</title>
+<title>画像・テキストキャンバス</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -53,10 +53,12 @@
     display: none;
   }
 
-  .img-item {
+  /* 画像とテキストの共通スタイル */
+  .img-item, .text-item {
     position: absolute;
     touch-action: none;
     will-change: transform;
+    border: 2px solid transparent;
   }
 
   .img-item img {
@@ -67,12 +69,22 @@
     height: auto;
     pointer-events: none;
     -webkit-user-drag: none;
-    border: 2px solid transparent;
   }
 
-  .img-item.selected img {
+  /* テキスト特有のスタイル */
+  .text-item {
+    padding: 8px;
+    font-size: 32px; /* 基本サイズ。ピンチで拡大縮小されます */
+    white-space: pre-wrap; /* 改行を反映 */
+    min-width: 1em;
+    min-height: 1em;
+  }
+
+  /* 選択時のハイライト（画像・テキスト共通） */
+  .img-item.selected, .text-item.selected {
     border-color: rgba(60,120,220,0.5);
     box-shadow: 0 0 0 1px rgba(60,120,220,0.2);
+    border-radius: 4px;
   }
 
   /* 歯車ボタン */
@@ -119,7 +131,7 @@
     display: none;
     flex-direction: column;
     gap: 2px;
-    min-width: 148px;
+    min-width: 160px;
     box-shadow: 0 6px 28px rgba(0,0,0,0.1);
   }
 
@@ -149,6 +161,83 @@
     margin: 2px 4px;
   }
 
+  /* テキスト追加モーダル */
+  #text-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 3000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #text-modal-overlay.open { display: flex; }
+
+  #text-modal {
+    background: #fff;
+    padding: 20px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+
+  #text-input {
+    width: 100%;
+    height: 80px;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    resize: none;
+    font-family: inherit;
+  }
+
+  .tm-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+
+  .tm-row select, .tm-row input[type="color"] {
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+
+  .tm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 5px;
+  }
+
+  .tm-btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #eee;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tm-btn:active { background: #e0e0e0; }
+
+  .tm-btn-primary {
+    background: #3c78dc;
+    color: #fff;
+  }
+  
+  .tm-btn-primary:active { background: #2b61b8; }
+
+
   /* ページナビ */
   #nav-prev, #nav-next {
     position: fixed;
@@ -169,7 +258,6 @@
   #nav-next { right: 2px; }
   #nav-prev:active, #nav-next:active { color: rgba(0,0,0,0.45); }
 
-
   #bg-input, #img-input { display: none; }
 </style>
 </head>
@@ -177,20 +265,46 @@
 
 <div id="canvas-wrap"></div>
 
+<!-- 歯車ボタンと設定パネル -->
 <button id="gear-btn" onclick="toggleSettings()">⚙️</button>
 
 <div id="settings-panel">
   <button class="sp-btn" onclick="triggerBg()">🌄　背景を設定</button>
   <button class="sp-btn" onclick="triggerImg()">➕　画像を追加</button>
+  <button class="sp-btn" onclick="openTextModal()">🔤　テキストを追加</button>
   <div class="sp-divider"></div>
   <button class="sp-btn danger" onclick="deleteSelected()">🗑️　選択を削除</button>
   <div class="sp-divider"></div>
   <button class="sp-btn" onclick="addPage()">📄　ページを追加</button>
 </div>
 
+<!-- テキスト追加用モーダル -->
+<div id="text-modal-overlay">
+  <div id="text-modal">
+    <textarea id="text-input" placeholder="テキストを入力"></textarea>
+    <div class="tm-row">
+      <label>色: <input type="color" id="text-color" value="#000000"></label>
+    </div>
+    <div class="tm-row">
+      <label>フォント:
+        <select id="text-font">
+          <option value="'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif">ゴシック</option>
+          <option value="'Hiragino Mincho ProN', 'Yu Mincho', serif">明朝</option>
+          <option value="'Hiragino Maru Gothic ProN', sans-serif">丸ゴシック</option>
+          <option value="sans-serif">サンセリフ</option>
+          <option value="serif">セリフ</option>
+        </select>
+      </label>
+    </div>
+    <div class="tm-actions">
+      <button class="tm-btn" onclick="closeTextModal()">キャンセル</button>
+      <button class="tm-btn tm-btn-primary" onclick="addTextItem()">追加</button>
+    </div>
+  </div>
+</div>
+
 <button id="nav-prev" onclick="goPage(-1)">◁</button>
 <button id="nav-next" onclick="goPage(1)">▷</button>
-
 
 <input type="file" id="bg-input" accept="image/*">
 <input type="file" id="img-input" accept="image/*" multiple>
@@ -235,7 +349,6 @@ function addPage() {
   const dom = createPageDOM();
   pages.push({ dom });
   switchPage(pages.length - 1);
-  updateIndicator();
   closeSettings();
 }
 
@@ -245,7 +358,6 @@ function switchPage(index) {
   });
   currentPage = index;
   deselectAll();
-  updateIndicator();
 }
 
 function goPage(dir) {
@@ -253,8 +365,6 @@ function goPage(dir) {
   if (next < 0 || next >= pages.length) return;
   switchPage(next);
 }
-
-function updateIndicator() {}
 
 addPage(); // 初期ページ
 
@@ -271,14 +381,18 @@ function closeSettings() {
   gearBtn.classList.remove('open');
 }
 
+// パネル外タップで閉じる（モーダル表示中は除く）
 document.addEventListener('touchstart', (e) => {
+  const modalOverlay = document.getElementById('text-modal-overlay');
+  if (modalOverlay.classList.contains('open')) return;
+  
   if (!settingsPanel.contains(e.target) && e.target !== gearBtn) {
     closeSettings();
   }
 }, { passive: true });
 
 // ========================
-// 背景
+// 背景・画像追加
 // ========================
 function triggerBg() {
   document.getElementById('bg-input').click();
@@ -294,9 +408,6 @@ document.getElementById('bg-input').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-// ========================
-// 画像追加
-// ========================
 function triggerImg() {
   document.getElementById('img-input').click();
   closeSettings();
@@ -321,8 +432,8 @@ function addImageItem(file) {
 
   img.onload = () => {
     const page = pages[currentPage].dom;
-    const cx = page.clientWidth / 2 + (Math.random() - 0.5) * 100;
-    const cy = page.clientHeight / 2 + (Math.random() - 0.5) * 100;
+    const cx = page.clientWidth / 2 + (Math.random() - 0.5) * 50;
+    const cy = page.clientHeight / 2 + (Math.random() - 0.5) * 50;
     state.x = cx - Math.min(img.naturalWidth, 300) / 2;
     state.y = cy - Math.min(img.naturalHeight, 300) / 2;
     applyTransform(item, state);
@@ -335,15 +446,61 @@ function addImageItem(file) {
 }
 
 // ========================
-// 変換
+// テキスト追加
+// ========================
+function openTextModal() {
+  document.getElementById('text-modal-overlay').classList.add('open');
+  document.getElementById('text-input').value = '';
+  closeSettings();
+}
+
+function closeTextModal() {
+  document.getElementById('text-modal-overlay').classList.remove('open');
+}
+
+function addTextItem() {
+  const textInput = document.getElementById('text-input').value;
+  if (!textInput.trim()) {
+    closeTextModal();
+    return;
+  }
+  
+  const color = document.getElementById('text-color').value;
+  const font = document.getElementById('text-font').value;
+
+  const item = document.createElement('div');
+  item.className = 'text-item';
+  item.textContent = textInput; // 改行は white-space: pre-wrap で維持されます
+  item.style.color = color;
+  item.style.fontFamily = font;
+
+  const state = { x: 0, y: 0, scale: 1, rotate: 0 };
+  item._state = state;
+
+  const page = pages[currentPage].dom;
+  page.appendChild(item);
+
+  // 要素がDOMに追加された直後にサイズを測り、画面中央に配置
+  requestAnimationFrame(() => {
+    const cx = page.clientWidth / 2;
+    const cy = page.clientHeight / 2;
+    state.x = cx - (item.offsetWidth / 2) + (Math.random() - 0.5) * 40;
+    state.y = cy - (item.offsetHeight / 2) + (Math.random() - 0.5) * 40;
+    applyTransform(item, state);
+  });
+
+  attachTouchHandlers(item, state);
+  selectItem(item);
+  closeTextModal();
+}
+
+// ========================
+// 変換・選択・削除
 // ========================
 function applyTransform(el, s) {
   el.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rotate}deg) scale(${s.scale})`;
 }
 
-// ========================
-// 選択・削除
-// ========================
 function selectItem(item) {
   if (selectedItem && selectedItem !== item) {
     selectedItem.classList.remove('selected');
@@ -368,7 +525,7 @@ function deleteSelected() {
 }
 
 // ========================
-// タッチ処理
+// タッチ処理 (画像・テキスト共通)
 // ========================
 function attachTouchHandlers(el, state) {
   let touches = {};
@@ -430,7 +587,7 @@ function attachTouchHandlers(el, state) {
       const curMidY = (a.y + b.y) / 2;
 
       if (lastDist !== null) {
-        state.scale = Math.max(0.1, Math.min(10, state.scale * (curDist / lastDist)));
+        state.scale = Math.max(0.1, Math.min(20, state.scale * (curDist / lastDist)));
       }
       if (lastAngle !== null) {
         state.rotate += curAngle - lastAngle;
