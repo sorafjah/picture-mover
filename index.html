@@ -80,11 +80,16 @@
     min-height: 1em;
   }
 
-  /* 選択時のハイライト（画像・テキスト共通） */
-  .img-item.selected, .text-item.selected {
+  /* 選択時のハイライト（画像のみ） */
+  .img-item.selected {
     border-color: rgba(60,120,220,0.5);
     box-shadow: 0 0 0 1px rgba(60,120,220,0.2);
     border-radius: 4px;
+  }
+
+  /* テキストは選択時の枠線をなくす */
+  .text-item.selected {
+    border: 2px solid transparent;
   }
 
   /* 歯車ボタン */
@@ -288,11 +293,36 @@
     <div class="tm-row">
       <label>フォント:
         <select id="text-font">
-          <option value="'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif">ゴシック</option>
-          <option value="'Hiragino Mincho ProN', 'Yu Mincho', serif">明朝</option>
-          <option value="'Hiragino Maru Gothic ProN', sans-serif">丸ゴシック</option>
-          <option value="sans-serif">サンセリフ</option>
-          <option value="serif">セリフ</option>
+          <optgroup label="標準・汎用">
+            <option value="sans-serif">ゴシック体（標準）</option>
+            <option value="serif">明朝体（標準）</option>
+            <option value="monospace">等幅フォント</option>
+            <option value="cursive">手書き風・筆記体</option>
+            <option value="fantasy">装飾フォント</option>
+          </optgroup>
+          <optgroup label="日本語（Windows/Mac共通）">
+            <option value="'Yu Gothic', '游ゴシック', sans-serif">游ゴシック</option>
+            <option value="'Yu Mincho', '游明朝', serif">游明朝</option>
+            <option value="'BIZ UDGothic', sans-serif">BIZ UDゴシック</option>
+          </optgroup>
+          <optgroup label="日本語（Mac/iOS系）">
+            <option value="'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif">ヒラギノ角ゴ</option>
+            <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
+            <option value="'Hiragino Maru Gothic ProN', sans-serif">ヒラギノ丸ゴ</option>
+            <option value="'Klee', 'Klee One', cursive">クレー（手書き風）</option>
+          </optgroup>
+          <optgroup label="日本語（Windows系）">
+            <option value="'Meiryo', 'メイリオ', sans-serif">メイリオ</option>
+            <option value="'MS PGothic', 'ＭＳ Ｐゴシック', sans-serif">ＭＳ Ｐゴシック</option>
+            <option value="'MS PMincho', 'ＭＳ Ｐ明朝', serif">ＭＳ Ｐ明朝</option>
+          </optgroup>
+          <optgroup label="欧文">
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+            <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+            <option value="Impact, fantasy">Impact</option>
+          </optgroup>
         </select>
       </label>
     </div>
