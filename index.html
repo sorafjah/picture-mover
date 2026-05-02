@@ -137,6 +137,8 @@
     flex-direction: column;
     gap: 2px;
     min-width: 160px;
+    max-height: 70vh; /* 画面に収まらない場合に備える */
+    overflow-y: auto; /* スクロール可能にする */
     box-shadow: 0 6px 28px rgba(0,0,0,0.1);
   }
 
@@ -275,12 +277,14 @@
 
 <div id="settings-panel">
   <button class="sp-btn" onclick="triggerBg()">🌄　背景を設定</button>
+  <button class="sp-btn danger" onclick="removeBg()">🚫　背景を削除</button>
+  <div class="sp-divider"></div>
   <button class="sp-btn" onclick="triggerImg()">➕　画像を追加</button>
   <button class="sp-btn" onclick="openTextModal()">🔤　テキストを追加</button>
-  <div class="sp-divider"></div>
   <button class="sp-btn danger" onclick="deleteSelected()">🗑️　選択を削除</button>
   <div class="sp-divider"></div>
   <button class="sp-btn" onclick="addPage()">📄　ページを追加</button>
+  <button class="sp-btn danger" onclick="deletePage()">🗑️　ページを削除</button>
 </div>
 
 <!-- テキスト追加用モーダル -->
@@ -293,6 +297,11 @@
     <div class="tm-row">
       <label>フォント:
         <select id="text-font">
+          <optgroup label="UDフォント（読みやすい）">
+            <option value="'BIZ UDGothic', sans-serif">BIZ UDゴシック (Win/Mac)</option>
+            <option value="'BIZ UDMincho', serif">BIZ UD明朝 (Win/Mac)</option>
+            <option value="'UD Digi Kyokasho N-R', 'UD デジタル 教科書体 N-R', sans-serif">UDデジタル教科書体 (Win)</option>
+          </optgroup>
           <optgroup label="標準・汎用">
             <option value="sans-serif">ゴシック体（標準）</option>
             <option value="serif">明朝体（標準）</option>
@@ -303,7 +312,6 @@
           <optgroup label="日本語（Windows/Mac共通）">
             <option value="'Yu Gothic', '游ゴシック', sans-serif">游ゴシック</option>
             <option value="'Yu Mincho', '游明朝', serif">游明朝</option>
-            <option value="'BIZ UDGothic', sans-serif">BIZ UDゴシック</option>
           </optgroup>
           <optgroup label="日本語（Mac/iOS系）">
             <option value="'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif">ヒラギノ角ゴ</option>
@@ -396,6 +404,36 @@ function goPage(dir) {
   switchPage(next);
 }
 
+function deletePage() {
+  if (pages.length === 1) {
+    // 最後の1ページの場合は削除せず、白紙にリセットする
+    const page = pages[0].dom;
+    const bgImg = page.querySelector('.page-bg img');
+    bgImg.src = '';
+    bgImg.style.display = 'none';
+    const items = page.querySelectorAll('.img-item, .text-item');
+    items.forEach(item => item.parentNode.removeChild(item));
+    selectedItem = null;
+    closeSettings();
+    return;
+  }
+
+  // 現在のページをDOMから削除
+  const pageToRemove = pages[currentPage];
+  pageToRemove.dom.parentNode.removeChild(pageToRemove.dom);
+  
+  // 配列から削除
+  pages.splice(currentPage, 1);
+  
+  // ページインデックスの調整
+  if (currentPage >= pages.length) {
+    currentPage = pages.length - 1;
+  }
+  
+  switchPage(currentPage);
+  closeSettings();
+}
+
 addPage(); // 初期ページ
 
 // ========================
@@ -437,6 +475,13 @@ document.getElementById('bg-input').addEventListener('change', (e) => {
   bgImg.style.display = 'block';
   e.target.value = '';
 });
+
+function removeBg() {
+  const bgImg = pages[currentPage].dom.querySelector('.page-bg img');
+  bgImg.src = '';
+  bgImg.style.display = 'none';
+  closeSettings();
+}
 
 function triggerImg() {
   document.getElementById('img-input').click();
