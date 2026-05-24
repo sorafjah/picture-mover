@@ -301,7 +301,21 @@
     <h3>テキストを追加</h3>
     <textarea id="text-input" placeholder="テキストを入力"></textarea>
     <div class="tm-row">
-      <label>色: <input type="color" id="text-color" value="#000000"></label>
+      <label>文字色: <input type="color" id="text-color" value="#000000"></label>
+    </div>
+    <div class="tm-row" style="align-items:center; gap:10px;">
+      <span style="font-size:14px;">背景:</span>
+      <label style="display:flex;align-items:center;gap:5px;">
+        <input type="radio" name="text-bg" id="text-bg-none" value="none" checked> 透明
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;">
+        <input type="radio" name="text-bg" id="text-bg-white" value="white"> 白
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;">
+        <input type="radio" name="text-bg" id="text-bg-color" value="color"> カラー
+      </label>
+      <input type="color" id="text-bg-color-value" value="#ffff00"
+        style="display:none; padding:2px; border-radius:5px; border:1.5px solid var(--border); cursor:pointer; width:36px; height:28px;">
     </div>
     <div class="tm-row">
       <label>フォント:
@@ -692,6 +706,13 @@ function addImageItem(file) {
 function openTextModal() {
   document.getElementById('text-modal-overlay').classList.add('open');
   document.getElementById('text-input').value = '';
+  // ラジオ→カラーピッカー表示切り替え
+  document.querySelectorAll('input[name="text-bg"]').forEach(r => {
+    r.onchange = () => {
+      const show = document.getElementById('text-bg-color').checked;
+      document.getElementById('text-bg-color-value').style.display = show ? 'inline-block' : 'none';
+    };
+  });
   setTimeout(() => document.getElementById('text-input').focus(), 50);
 }
 function closeTextModal() {
@@ -702,11 +723,20 @@ function addTextItem() {
   if (!txt.trim()) { closeTextModal(); return; }
   const color = document.getElementById('text-color').value;
   const font = document.getElementById('text-font').value;
+  // 背景色の決定
+  const bgRadio = document.querySelector('input[name="text-bg"]:checked').value;
+  let bgColor = 'transparent';
+  if (bgRadio === 'white') bgColor = '#ffffff';
+  else if (bgRadio === 'color') bgColor = document.getElementById('text-bg-color-value').value;
+
   const item = document.createElement('div');
   item.className = 'text-item';
   item.textContent = txt;
   item.style.color = color;
   item.style.fontFamily = font;
+  item.style.backgroundColor = bgColor;
+  item.style.borderRadius = bgColor !== 'transparent' ? '6px' : '';
+  item.style.padding = bgColor !== 'transparent' ? '8px 12px' : '8px';
   const state = { x: 0, y: 0, scale: 1, rotate: 0 };
   item._state = state;
   const page = pages[currentPage].dom;
@@ -736,7 +766,7 @@ function saveHTML() {
       if (el.classList.contains('img-item')) {
         items.push({ type: 'image', src: el.querySelector('img').src, state: { ...s } });
       } else {
-        items.push({ type: 'text', text: el.textContent, color: el.style.color, fontFamily: el.style.fontFamily, state: { ...s } });
+        items.push({ type: 'text', text: el.textContent, color: el.style.color, fontFamily: el.style.fontFamily, bgColor: el.style.backgroundColor || 'transparent', borderRadius: el.style.borderRadius || '', padding: el.style.padding || '8px', state: { ...s } });
       }
     });
     return { bgSrc, items };
