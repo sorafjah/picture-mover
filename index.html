@@ -3,287 +3,302 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>画像・テキストキャンバス(PC用)</title>
+<title>画像・テキストキャンバス</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  body {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    font-family: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif;
-    user-select: none;
-    -webkit-user-select: none;
+  :root {
+    --bg: #f3f4f7;
+    --white: #ffffff;
+    --accent: #4a7cf7;
+    --accent2: #e74c3c;
+    --text: #1a1a2e;
+    --muted: #7a7f8a;
+    --border: #e0e4ea;
+    --header-h: 52px;
+    --thumb-h: 230px; /* 2倍 */
   }
 
-  #canvas-wrap {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+  body {
+    width: 100vw; height: 100vh; overflow: hidden;
+    font-family: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', sans-serif;
+    user-select: none; -webkit-user-select: none;
+    background: var(--white);
   }
+
+  /* ===== CANVAS VIEW ===== */
+  #canvas-view { position: absolute; inset: 0; }
+
+  #gear-btn {
+    position: fixed; top: 13px; left: 13px; z-index: 500;
+    background: none; border: none; font-size: 24px;
+    cursor: pointer; opacity: 0.4; width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s, transform 0.3s ease;
+  }
+  #gear-btn:hover { opacity: 0.8; transform: rotate(30deg); }
+
+  #page-indicator {
+    position: fixed; top: 18px; right: 14px; z-index: 500;
+    font-size: 13px; color: rgba(0,0,0,0.28); pointer-events: none;
+  }
+
+  #nav-prev, #nav-next {
+    position: fixed; top: 50%; transform: translateY(-50%); z-index: 400;
+    background: none; border: none;
+    font-size: 32px; color: rgba(0,0,0,0.13);
+    padding: 16px 10px; cursor: pointer; line-height: 1;
+    transition: color 0.15s;
+  }
+  #nav-prev { left: 2px; }
+  #nav-next { right: 2px; }
+  #nav-prev:hover, #nav-next:hover { color: rgba(0,0,0,0.42); }
+
+  #canvas-wrap { position: absolute; inset: 0; }
 
   .page {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: none;
-    overflow: hidden;
+    position: absolute; inset: 0; display: none;
+    overflow: hidden; background: var(--white);
   }
-
   .page.active { display: block; }
 
   .page-bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    background: #ddeeff;
-    overflow: hidden;
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--white);
   }
-
   .page-bg img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    pointer-events: none;
-    display: none;
+    max-width: 100%; max-height: 100%;
+    width: auto; height: auto; object-fit: contain;
+    pointer-events: none; display: none; -webkit-user-drag: none;
   }
 
-  /* 画像とテキストの共通スタイル */
   .img-item, .text-item {
-    position: absolute;
-    cursor: grab;
-    will-change: transform;
-    /* 枠線を完全に消すために border を削除 */
+    position: absolute; cursor: grab; will-change: transform;
   }
-
   .img-item:active, .text-item:active { cursor: grabbing; }
-
   .img-item img {
-    display: block;
-    max-width: 300px;
-    max-height: 300px;
-    width: auto;
-    height: auto;
-    pointer-events: none;
-    -webkit-user-drag: none;
+    display: block; max-width: 300px; max-height: 300px;
+    pointer-events: none; -webkit-user-drag: none;
   }
-
-  /* テキスト特有のスタイル */
   .text-item {
-    padding: 8px;
-    font-size: 32px;
-    white-space: pre-wrap; /* 改行を反映 */
-    min-width: 1em;
-    min-height: 1em;
+    padding: 8px; font-size: 32px; white-space: pre-wrap;
+    min-width: 1em; min-height: 1em;
   }
 
-  /* 選択時のハイライトスタイルを削除（画像・テキスト共に枠線なし） */
+  /* ===== SETTINGS VIEW ===== */
+  #settings-view {
+    position: fixed; inset: 0; background: var(--bg); z-index: 1000;
+    display: flex; flex-direction: column;
+    transform: translateY(-100%);
+    transition: transform 0.38s cubic-bezier(0.32, 0.84, 0.44, 1);
+  }
+  #settings-view.open { transform: translateY(0); }
 
-  /* 歯車ボタン */
-  #gear-btn {
-    position: fixed;
-    bottom: 18px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 2000;
-    width: 38px;
-    height: 38px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    opacity: 0.35;
-    transition: opacity 0.2s, transform 0.35s ease;
+  #settings-header {
+    height: var(--header-h); flex-shrink: 0;
+    background: var(--white); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 12px;
   }
 
-  #gear-btn.open {
-    opacity: 0.65;
-    transform: translateX(-50%) rotate(65deg);
+  #view-canvas-btn {
+    padding: 8px 20px; border-radius: 20px;
+    background: var(--accent); color: #fff; border: none;
+    font-size: 14px; font-family: inherit; font-weight: bold;
+    cursor: pointer; transition: background 0.12s, transform 0.1s;
+  }
+  #view-canvas-btn:hover { background: #3a68e0; }
+  #view-canvas-btn:active { transform: scale(0.96); }
+
+  #settings-label { font-size: 14px; color: var(--muted); font-weight: bold; }
+
+  /* サムネイルバー */
+  #thumb-bar {
+    height: var(--thumb-h); flex-shrink: 0;
+    background: var(--white); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 12px 16px; gap: 0;
+    overflow-x: auto; overflow-y: hidden;
+  }
+  #thumb-bar::-webkit-scrollbar { height: 5px; }
+  #thumb-bar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
+  /* ドロップ挿入インジケーター */
+  .thumb-insert-indicator {
+    width: 3px; min-width: 3px;
+    height: 80%;
+    background: var(--accent);
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: width 0.12s, opacity 0.12s;
+    opacity: 0;
+    margin: 0 1px;
+  }
+  .thumb-insert-indicator.active {
+    opacity: 1;
+    width: 4px; min-width: 4px;
+    box-shadow: 0 0 6px rgba(74,124,247,0.5);
   }
 
-  #gear-btn:hover { opacity: 0.6; }
-
-  /* 設定パネル */
-  #settings-panel {
-    position: fixed;
-    bottom: 64px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1900;
-    background: rgba(255,255,255,0.93);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(0,0,0,0.07);
-    border-radius: 16px;
-    padding: 6px 5px;
-    display: none;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 170px;
-    max-height: 70vh; /* 画面に収まらない場合に備える */
-    overflow-y: auto; /* スクロール可能にする */
-    box-shadow: 0 6px 28px rgba(0,0,0,0.1);
+  /* サムネイルラッパー */
+  .slide-thumb-wrap {
+    flex-shrink: 0;
+    margin: 0 7px;
+    position: relative;
   }
 
-  #settings-panel.open { display: flex; }
+  .slide-thumb {
+    width: 300px; height: 188px;
+    border-radius: 9px; overflow: hidden;
+    border: 2.5px solid transparent;
+    background: #e8eaed; position: relative;
+    cursor: grab;
+    transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  }
+  .slide-thumb.current {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(74,124,247,0.18);
+  }
+  .slide-thumb:hover:not(.current) { border-color: #aab3c8; }
+  .slide-thumb.dragging { opacity: 0.3; cursor: grabbing; }
 
-  .sp-btn {
-    background: none;
-    border: none;
-    border-radius: 10px;
-    padding: 11px 13px;
-    font-size: 14px;
-    font-family: inherit;
-    color: #222;
-    cursor: pointer;
-    text-align: left;
-    white-space: nowrap;
-    transition: background 0.12s;
+  .slide-thumb canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+  .slide-thumb-label {
+    position: absolute; bottom: 5px; left: 7px;
+    font-size: 11px; color: rgba(255,255,255,0.95);
+    background: rgba(0,0,0,0.36); border-radius: 4px; padding: 2px 6px;
   }
 
-  .sp-btn:hover { background: rgba(0,0,0,0.05); }
-  .sp-btn:active { background: rgba(0,0,0,0.09); }
-  .sp-btn.danger { color: #c0392b; }
-
-  .sp-divider {
-    height: 1px;
-    background: rgba(0,0,0,0.07);
-    margin: 2px 4px;
+  /* 4カラムセクション */
+  #sections {
+    flex: 1; display: flex; overflow: hidden;
+    border-top: 1px solid var(--border);
   }
 
-  /* テキスト追加モーダル */
-  #text-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 3000;
-    display: none;
-    align-items: center;
-    justify-content: center;
+  .section {
+    flex: 1; display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow-y: auto; min-width: 0;
+  }
+  .section:last-child { border-right: none; }
+
+  .section-title {
+    padding: 13px 16px 8px;
+    font-size: 11px; font-weight: bold;
+    color: var(--muted); letter-spacing: 0.07em;
+    text-transform: uppercase; flex-shrink: 0;
+    background: var(--white); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 1;
   }
 
-  #text-modal-overlay.open { display: flex; }
+  .section-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 
-  #text-modal {
-    background: #fff;
-    padding: 20px;
-    border-radius: 16px;
-    width: 90%;
-    max-width: 400px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-  }
-
-  #text-input {
+  .tool-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; font-size: 13px; font-family: inherit;
+    color: var(--text); cursor: pointer; text-align: left;
+    transition: background 0.12s, border-color 0.12s, transform 0.1s;
     width: 100%;
-    height: 100px;
-    padding: 10px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    resize: vertical;
-    font-family: inherit;
   }
+  .tool-btn:hover { background: #f5f7fb; border-color: #c8d0de; }
+  .tool-btn:active { background: #eef2fa; transform: scale(0.97); }
+  .tool-btn.danger { color: var(--accent2); }
+  .tool-btn.danger:hover { background: #fef0ef; border-color: #f5c4c0; }
+  .tool-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tool-btn-primary:hover { background: #3a68e0; border-color: #3a68e0; }
 
-  .tm-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
+  /* テキストモーダル */
+  #text-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 3000; display: none;
+    align-items: center; justify-content: center; backdrop-filter: blur(4px);
   }
-
+  #text-modal-overlay.open { display: flex; }
+  #text-modal {
+    background: #fff; padding: 24px; border-radius: 18px;
+    width: 90%; max-width: 420px; display: flex; flex-direction: column; gap: 16px;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.22);
+  }
+  #text-modal h3 { font-size: 16px; color: var(--text); }
+  #text-input {
+    width: 100%; height: 100px; padding: 10px; font-size: 16px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    resize: vertical; font-family: inherit; outline: none; transition: border-color 0.15s;
+  }
+  #text-input:focus { border-color: var(--accent); }
+  .tm-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 14px; }
+  .tm-row label { display: flex; align-items: center; gap: 6px; }
   .tm-row select, .tm-row input[type="color"] {
-    padding: 4px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    cursor: pointer;
+    padding: 4px; border-radius: 6px; border: 1.5px solid var(--border); cursor: pointer;
   }
-
-  .tm-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 5px;
-  }
-
+  .tm-actions { display: flex; justify-content: flex-end; gap: 10px; }
   .tm-btn {
-    padding: 10px 16px;
-    border: none;
-    border-radius: 8px;
-    background: #eee;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: bold;
-    transition: background 0.1s;
+    padding: 10px 18px; border: none; border-radius: 9px; background: var(--bg);
+    cursor: pointer; font-size: 14px; font-weight: bold; font-family: inherit;
   }
+  .tm-btn:hover { background: var(--border); }
+  .tm-btn-primary { background: var(--accent); color: #fff; }
+  .tm-btn-primary:hover { background: #3a68e0; }
 
-  .tm-btn:hover { background: #e0e0e0; }
-  .tm-btn:active { background: #d0d0d0; }
-
-  .tm-btn-primary {
-    background: #3c78dc;
-    color: #fff;
-  }
-  
-  .tm-btn-primary:hover { background: #3264b8; }
-  .tm-btn-primary:active { background: #2b56a0; }
-
-
-  /* ページナビ */
-  #nav-prev, #nav-next {
-    position: fixed;
-    bottom: 24px;
-    z-index: 1500;
-    background: none;
-    border: none;
-    font-size: 24px;
-    color: rgba(0,0,0,0.16);
-    padding: 14px 14px;
-    cursor: pointer;
-    transition: color 0.15s;
-    line-height: 1;
-  }
-
-  #nav-prev { left: 2px; }
-  #nav-next { right: 2px; }
-  #nav-prev:hover, #nav-next:hover { color: rgba(0,0,0,0.4); }
-
-  #bg-input, #img-input { display: none; }
-
-  /* カーソル：回転モード */
-  body.rotate-mode .img-item.selected,
-  body.rotate-mode .text-item.selected { cursor: crosshair; }
+  #bg-input, #img-input, #html-input { display: none; }
 </style>
 </head>
 <body>
 
-<div id="canvas-wrap"></div>
-
-<button id="gear-btn" onclick="toggleSettings()">⚙️</button>
-
-<div id="settings-panel">
-  <button class="sp-btn" onclick="triggerBg()">🌄　背景を設定</button>
-  <button class="sp-btn danger" onclick="removeBg()">🚫　背景を削除</button>
-  <div class="sp-divider"></div>
-  <button class="sp-btn" onclick="triggerImg()">➕　画像を追加</button>
-  <button class="sp-btn" onclick="openTextModal()">🔤　テキストを追加</button>
-  <button class="sp-btn danger" onclick="deleteSelected()">🗑️　選択を削除</button>
-  <div class="sp-divider"></div>
-  <button class="sp-btn" onclick="addPage()">📄　ページを追加</button>
-  <button class="sp-btn danger" onclick="deletePage()">🗑️　ページを削除</button>
+<div id="canvas-view">
+  <button id="gear-btn" onclick="openSettings()" title="設定">⚙️</button>
+  <div id="page-indicator">1 / 1</div>
+  <div id="canvas-wrap"></div>
+  <button id="nav-prev" onclick="goPage(-1)">◁</button>
+  <button id="nav-next" onclick="goPage(1)">▷</button>
 </div>
 
-<!-- テキスト追加用モーダル -->
+<div id="settings-view">
+  <div id="settings-header">
+    <button id="view-canvas-btn" onclick="closeSettings()">▶ スライドをみる</button>
+    <span id="settings-label">設定</span>
+  </div>
+
+  <div id="thumb-bar"></div>
+
+  <div id="sections">
+    <div class="section">
+      <div class="section-title">スライド</div>
+      <div class="section-body">
+        <button class="tool-btn tool-btn-primary" onclick="addPage()">＋ 追加</button>
+        <button class="tool-btn danger" onclick="deletePage()">削除</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">背景</div>
+      <div class="section-body">
+        <button class="tool-btn" onclick="triggerBg()">背景を設定</button>
+        <button class="tool-btn danger" onclick="removeBg()">背景を削除</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">コンテンツ</div>
+      <div class="section-body">
+        <button class="tool-btn" onclick="triggerImg()">画像を追加</button>
+        <button class="tool-btn" onclick="openTextModal()">テキストを追加</button>
+        <button class="tool-btn danger" onclick="deleteSelected()">選択を削除</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">ファイル</div>
+      <div class="section-body">
+        <button class="tool-btn" onclick="saveHTML()">HTMLで保存</button>
+        <button class="tool-btn" onclick="triggerHTMLLoad()">HTMLを読み込む</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="text-modal-overlay">
   <div id="text-modal">
+    <h3>テキストを追加</h3>
     <textarea id="text-input" placeholder="テキストを入力"></textarea>
     <div class="tm-row">
       <label>色: <input type="color" id="text-color" value="#000000"></label>
@@ -291,39 +306,25 @@
     <div class="tm-row">
       <label>フォント:
         <select id="text-font">
-          <optgroup label="UDフォント（読みやすい）">
-            <option value="'BIZ UDGothic', sans-serif">BIZ UDゴシック (Win/Mac)</option>
-            <option value="'BIZ UDMincho', serif">BIZ UD明朝 (Win/Mac)</option>
-            <option value="'UD Digi Kyokasho N-R', 'UD デジタル 教科書体 N-R', sans-serif">UDデジタル教科書体 (Win)</option>
+          <optgroup label="UDフォント">
+            <option value="'BIZ UDGothic',sans-serif">BIZ UDゴシック</option>
+            <option value="'BIZ UDMincho',serif">BIZ UD明朝</option>
           </optgroup>
-          <optgroup label="標準・汎用">
-            <option value="sans-serif">ゴシック体（標準）</option>
-            <option value="serif">明朝体（標準）</option>
-            <option value="monospace">等幅フォント</option>
-            <option value="cursive">手書き風・筆記体</option>
-            <option value="fantasy">装飾フォント</option>
+          <optgroup label="標準">
+            <option value="sans-serif">ゴシック体</option>
+            <option value="serif">明朝体</option>
+            <option value="monospace">等幅</option>
           </optgroup>
-          <optgroup label="日本語（Windows/Mac共通）">
-            <option value="'Yu Gothic', '游ゴシック', sans-serif">游ゴシック</option>
-            <option value="'Yu Mincho', '游明朝', serif">游明朝</option>
-          </optgroup>
-          <optgroup label="日本語（Mac/iOS系）">
-            <option value="'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif">ヒラギノ角ゴ</option>
-            <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
-            <option value="'Hiragino Maru Gothic ProN', sans-serif">ヒラギノ丸ゴ</option>
-            <option value="'Klee', 'Klee One', cursive">クレー（手書き風）</option>
-          </optgroup>
-          <optgroup label="日本語（Windows系）">
-            <option value="'Meiryo', 'メイリオ', sans-serif">メイリオ</option>
-            <option value="'MS PGothic', 'ＭＳ Ｐゴシック', sans-serif">ＭＳ Ｐゴシック</option>
-            <option value="'MS PMincho', 'ＭＳ Ｐ明朝', serif">ＭＳ Ｐ明朝</option>
+          <optgroup label="日本語">
+            <option value="'Yu Gothic','游ゴシック',sans-serif">游ゴシック</option>
+            <option value="'Yu Mincho','游明朝',serif">游明朝</option>
+            <option value="'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif">ヒラギノ角ゴ</option>
+            <option value="'Meiryo','メイリオ',sans-serif">メイリオ</option>
           </optgroup>
           <optgroup label="欧文">
-            <option value="Arial, sans-serif">Arial</option>
-            <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
-            <option value="'Times New Roman', Times, serif">Times New Roman</option>
-            <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
-            <option value="Impact, fantasy">Impact</option>
+            <option value="Arial,sans-serif">Arial</option>
+            <option value="'Times New Roman',serif">Times New Roman</option>
+            <option value="'Comic Sans MS',cursive">Comic Sans MS</option>
           </optgroup>
         </select>
       </label>
@@ -335,21 +336,238 @@
   </div>
 </div>
 
-<button id="nav-prev" onclick="goPage(-1)">◁</button>
-<button id="nav-next" onclick="goPage(1)">▷</button>
-
 <input type="file" id="bg-input" accept="image/*">
 <input type="file" id="img-input" accept="image/*" multiple>
+<input type="file" id="html-input" accept=".html">
 
 <script>
 let pages = [];
 let currentPage = 0;
 let selectedItem = null;
 let zCounter = 10;
+let settingsOpen = false;
+
+// D&D 状態
+let dragSrcIndex = null;
+let dropTargetIndex = null; // 何番目の「間」に入るか
 
 const canvasWrap = document.getElementById('canvas-wrap');
-const settingsPanel = document.getElementById('settings-panel');
-const gearBtn = document.getElementById('gear-btn');
+const settingsView = document.getElementById('settings-view');
+const pageIndicator = document.getElementById('page-indicator');
+const thumbBar = document.getElementById('thumb-bar');
+
+// ========================
+// 設定パネル
+// ========================
+function openSettings() {
+  settingsOpen = true;
+  settingsView.classList.add('open');
+  renderThumbBar();
+  document.getElementById('gear-btn').style.transform = 'rotate(90deg)';
+}
+
+function closeSettings() {
+  // 戻る前にサムネイル更新
+  renderThumbBar();
+  settingsOpen = false;
+  settingsView.classList.remove('open');
+  updateIndicator();
+  document.getElementById('gear-btn').style.transform = '';
+}
+
+// ========================
+// サムネイルバー（インサート式D&D）
+// ========================
+function renderThumbBar() {
+  thumbBar.innerHTML = '';
+
+  pages.forEach((p, i) => {
+    // 左側のインジケーター
+    const indicator = document.createElement('div');
+    indicator.className = 'thumb-insert-indicator';
+    indicator.dataset.insertBefore = i;
+    thumbBar.appendChild(indicator);
+
+    // サムネイルラッパー
+    const wrap = document.createElement('div');
+    wrap.className = 'slide-thumb-wrap';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'slide-thumb' + (i === currentPage ? ' current' : '');
+    thumb.draggable = true;
+    thumb.dataset.index = i;
+
+    const cv = document.createElement('canvas');
+    cv.width = 600; cv.height = 376;
+    drawThumb(cv, p.dom);
+    thumb.appendChild(cv);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'slide-thumb-label';
+    lbl.textContent = i + 1;
+    thumb.appendChild(lbl);
+
+    // クリックでページ切り替え
+    thumb.addEventListener('click', () => { switchPage(i); renderThumbBar(); });
+
+    // --- ドラッグ開始 ---
+    thumb.addEventListener('dragstart', (e) => {
+      dragSrcIndex = i;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => thumb.classList.add('dragging'), 0);
+    });
+
+    // --- ドラッグ終了 ---
+    thumb.addEventListener('dragend', () => {
+      thumb.classList.remove('dragging');
+      clearInsertIndicators();
+      dragSrcIndex = null;
+      dropTargetIndex = null;
+    });
+
+    wrap.appendChild(thumb);
+    thumbBar.appendChild(wrap);
+  });
+
+  // 末尾インジケーター
+  const lastIndicator = document.createElement('div');
+  lastIndicator.className = 'thumb-insert-indicator';
+  lastIndicator.dataset.insertBefore = pages.length;
+  thumbBar.appendChild(lastIndicator);
+
+  // --- thumbBar全体でdragover/drop ---
+  thumbBar.addEventListener('dragover', onThumbBarDragOver);
+  thumbBar.addEventListener('drop', onThumbBarDrop);
+  thumbBar.addEventListener('dragleave', onThumbBarDragLeave);
+
+  // 現在のサムネイルへスクロール
+  const thumbWraps = thumbBar.querySelectorAll('.slide-thumb-wrap');
+  if (thumbWraps[currentPage]) {
+    thumbWraps[currentPage].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
+}
+
+function onThumbBarDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  // マウスX座標から、どの「間」に入るか計算
+  const insertIndex = getInsertIndex(e.clientX);
+  if (insertIndex === dropTargetIndex) return;
+  dropTargetIndex = insertIndex;
+  updateInsertIndicators(insertIndex);
+}
+
+function onThumbBarDrop(e) {
+  e.preventDefault();
+  if (dragSrcIndex === null || dropTargetIndex === null) return;
+
+  // 実際に移動する先のインデックスを計算
+  // dragSrcIndex を配列から抜いた後の insertBefore 位置
+  let insertAt = dropTargetIndex;
+  if (dragSrcIndex < insertAt) insertAt--;
+  if (insertAt !== dragSrcIndex) {
+    moveSlide(dragSrcIndex, insertAt);
+  }
+  clearInsertIndicators();
+  dragSrcIndex = null;
+  dropTargetIndex = null;
+}
+
+function onThumbBarDragLeave(e) {
+  // thumbBar の外に出たときだけクリア
+  if (!thumbBar.contains(e.relatedTarget)) {
+    clearInsertIndicators();
+    dropTargetIndex = null;
+  }
+}
+
+function getInsertIndex(clientX) {
+  // 各サムネイルの中心X座標と比べて、何番目の前に入るか
+  const wraps = Array.from(thumbBar.querySelectorAll('.slide-thumb-wrap'));
+  for (let i = 0; i < wraps.length; i++) {
+    const rect = wraps[i].getBoundingClientRect();
+    if (clientX < rect.left + rect.width / 2) return i;
+  }
+  return wraps.length;
+}
+
+function updateInsertIndicators(activeIndex) {
+  thumbBar.querySelectorAll('.thumb-insert-indicator').forEach(ind => {
+    const idx = parseInt(ind.dataset.insertBefore);
+    ind.classList.toggle('active', idx === activeIndex);
+  });
+}
+
+function clearInsertIndicators() {
+  thumbBar.querySelectorAll('.thumb-insert-indicator').forEach(ind => {
+    ind.classList.remove('active');
+  });
+}
+
+function moveSlide(from, to) {
+  const [moved] = pages.splice(from, 1);
+  pages.splice(to, 0, moved);
+
+  const doms = Array.from(canvasWrap.querySelectorAll('.page'));
+  const [movedDom] = doms.splice(from, 1);
+  doms.splice(to, 0, movedDom);
+  doms.forEach(d => canvasWrap.appendChild(d));
+
+  if (currentPage === from) currentPage = to;
+  else if (from < to && currentPage > from && currentPage <= to) currentPage--;
+  else if (from > to && currentPage >= to && currentPage < from) currentPage++;
+
+  switchPage(currentPage);
+  renderThumbBar();
+}
+
+// ========================
+// サムネイル描画
+// ========================
+function drawThumb(canvas, pageDom) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const bgImg = pageDom.querySelector('.page-bg img');
+  if (bgImg && bgImg.style.display !== 'none' && bgImg.src) {
+    try {
+      const iw = bgImg.naturalWidth, ih = bgImg.naturalHeight;
+      const scale = Math.min(W / iw, H / ih);
+      const dw = iw * scale, dh = ih * scale;
+      ctx.drawImage(bgImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    } catch(e) {}
+  }
+
+  const pw = pageDom.clientWidth || window.innerWidth;
+  const ph = pageDom.clientHeight || window.innerHeight;
+  const sx = W / pw, sy = H / ph;
+
+  pageDom.querySelectorAll('.img-item, .text-item').forEach(item => {
+    const s = item._state;
+    if (!s) return;
+    const iw2 = item.offsetWidth * s.scale, ih2 = item.offsetHeight * s.scale;
+    ctx.save();
+    ctx.translate((s.x + iw2 / 2) * sx, (s.y + ih2 / 2) * sy);
+    ctx.rotate(s.rotate * Math.PI / 180);
+    if (item.classList.contains('img-item')) {
+      const img = item.querySelector('img');
+      try {
+        const dw = Math.min(img.naturalWidth, 300) * s.scale * sx;
+        const dh = Math.min(img.naturalHeight, 300) * s.scale * sy;
+        ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+      } catch(e) {}
+    } else {
+      ctx.fillStyle = item.style.color || '#000';
+      ctx.font = `16px ${item.style.fontFamily || 'sans-serif'}`;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.textContent.slice(0, 20), -15 * sx, 0);
+    }
+    ctx.restore();
+  });
+}
 
 // ========================
 // ページ管理
@@ -357,25 +575,17 @@ const gearBtn = document.getElementById('gear-btn');
 function createPageDOM() {
   const page = document.createElement('div');
   page.className = 'page';
-
   const bg = document.createElement('div');
   bg.className = 'page-bg';
-
   const bgImg = document.createElement('img');
   bgImg.alt = '背景';
   bg.appendChild(bgImg);
   page.appendChild(bg);
-
-  // 背景クリック・タッチで選択解除
-  const deselectFn = (e) => {
-    if (e.target === page || e.target === bg || e.target === bgImg) {
-      deselectAll();
-      closeSettings();
-    }
+  const desel = (e) => {
+    if (e.target === page || e.target === bg || e.target === bgImg) deselectAll();
   };
-  page.addEventListener('mousedown', deselectFn);
-  page.addEventListener('touchstart', deselectFn, { passive: true });
-
+  page.addEventListener('mousedown', desel);
+  page.addEventListener('touchstart', desel, { passive: true });
   canvasWrap.appendChild(page);
   return page;
 }
@@ -384,15 +594,18 @@ function addPage() {
   const dom = createPageDOM();
   pages.push({ dom });
   switchPage(pages.length - 1);
-  closeSettings();
+  renderThumbBar();
 }
 
 function switchPage(index) {
-  pages.forEach((p, i) => {
-    p.dom.classList.toggle('active', i === index);
-  });
+  pages.forEach((p, i) => p.dom.classList.toggle('active', i === index));
   currentPage = index;
   deselectAll();
+  updateIndicator();
+}
+
+function updateIndicator() {
+  pageIndicator.textContent = `${currentPage + 1} / ${pages.length}`;
 }
 
 function goPage(dir) {
@@ -403,68 +616,28 @@ function goPage(dir) {
 
 function deletePage() {
   if (pages.length === 1) {
-    // 最後の1ページの場合は白紙にリセット
-    const page = pages[0].dom;
-    const bgImg = page.querySelector('.page-bg img');
-    bgImg.src = '';
-    bgImg.style.display = 'none';
-    const items = page.querySelectorAll('.img-item, .text-item');
-    items.forEach(item => item.parentNode.removeChild(item));
+    const p = pages[0].dom;
+    const bi = p.querySelector('.page-bg img');
+    bi.src = ''; bi.style.display = 'none';
+    p.querySelectorAll('.img-item, .text-item').forEach(el => el.remove());
     selectedItem = null;
-    closeSettings();
+    renderThumbBar();
     return;
   }
-
-  // 現在のページをDOMから削除
-  const pageToRemove = pages[currentPage];
-  pageToRemove.dom.parentNode.removeChild(pageToRemove.dom);
-  
-  // 配列から削除
+  pages[currentPage].dom.remove();
   pages.splice(currentPage, 1);
-  
-  // ページインデックス調整
-  if (currentPage >= pages.length) {
-    currentPage = pages.length - 1;
-  }
-  
+  if (currentPage >= pages.length) currentPage = pages.length - 1;
   switchPage(currentPage);
-  closeSettings();
+  renderThumbBar();
 }
 
-addPage(); // 初期ページ
-
-// ========================
-// 設定パネル
-// ========================
-function toggleSettings() {
-  const open = settingsPanel.classList.toggle('open');
-  gearBtn.classList.toggle('open', open);
-}
-
-function closeSettings() {
-  settingsPanel.classList.remove('open');
-  gearBtn.classList.remove('open');
-}
-
-// モーダル表示中はパネル外クリックで閉じないようにする（PC/iPad両対応）
-const closeSettingsFn = (e) => {
-  const modalOverlay = document.getElementById('text-modal-overlay');
-  if (modalOverlay.classList.contains('open')) return;
-
-  if (!settingsPanel.contains(e.target) && e.target !== gearBtn) {
-    closeSettings();
-  }
-};
-document.addEventListener('mousedown', closeSettingsFn);
-document.addEventListener('touchstart', closeSettingsFn, { passive: true });
+addPage();
+openSettings();
 
 // ========================
 // 背景
 // ========================
-function triggerBg() {
-  document.getElementById('bg-input').click();
-  closeSettings();
-}
+function triggerBg() { document.getElementById('bg-input').click(); }
 
 document.getElementById('bg-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
@@ -473,56 +646,41 @@ document.getElementById('bg-input').addEventListener('change', (e) => {
   bgImg.src = URL.createObjectURL(file);
   bgImg.style.display = 'block';
   e.target.value = '';
+  // 設定に留まる。サムネイル反映は「スライドをみる」時
 });
 
 function removeBg() {
-  const bgImg = pages[currentPage].dom.querySelector('.page-bg img');
-  bgImg.src = '';
-  bgImg.style.display = 'none';
-  closeSettings();
+  const bi = pages[currentPage].dom.querySelector('.page-bg img');
+  bi.src = ''; bi.style.display = 'none';
 }
 
 // ========================
 // 画像追加
 // ========================
-function triggerImg() {
-  document.getElementById('img-input').click();
-  closeSettings();
-}
+function triggerImg() { document.getElementById('img-input').click(); }
 
 document.getElementById('img-input').addEventListener('change', (e) => {
-  Array.from(e.target.files).forEach((file, i) => {
-    setTimeout(() => addImageItem(file), i * 50);
-  });
+  Array.from(e.target.files).forEach((f, i) => setTimeout(() => addImageItem(f), i * 50));
   e.target.value = '';
 });
 
 function addImageItem(file) {
   const item = document.createElement('div');
   item.className = 'img-item';
-
   const img = document.createElement('img');
   img.src = URL.createObjectURL(file);
-
   const state = { x: 100, y: 100, scale: 1, rotate: 0 };
   item._state = state;
-
   img.onload = () => {
     const page = pages[currentPage].dom;
-    const cx = page.clientWidth / 2 + (Math.random() - 0.5) * 100;
-    const cy = page.clientHeight / 2 + (Math.random() - 0.5) * 100;
-    state.x = cx - Math.min(img.naturalWidth, 300) / 2;
-    state.y = cy - Math.min(img.naturalHeight, 300) / 2;
+    state.x = page.clientWidth / 2 + (Math.random() - 0.5) * 100 - Math.min(img.naturalWidth, 300) / 2;
+    state.y = page.clientHeight / 2 + (Math.random() - 0.5) * 100 - Math.min(img.naturalHeight, 300) / 2;
     applyTransform(item, state);
   };
-
   item.appendChild(img);
   pages[currentPage].dom.appendChild(item);
-  
-  // PC用・iPad用両方の操作を登録
   attachMouseHandlers(item, state);
   attachTouchHandlers(item, state);
-  
   selectItem(item);
 }
 
@@ -532,289 +690,264 @@ function addImageItem(file) {
 function openTextModal() {
   document.getElementById('text-modal-overlay').classList.add('open');
   document.getElementById('text-input').value = '';
-  // PC版なので表示時にフォーカスを当てる
   setTimeout(() => document.getElementById('text-input').focus(), 50);
-  closeSettings();
 }
-
 function closeTextModal() {
   document.getElementById('text-modal-overlay').classList.remove('open');
 }
-
 function addTextItem() {
-  const textInput = document.getElementById('text-input').value;
-  if (!textInput.trim()) {
-    closeTextModal();
-    return;
-  }
-  
+  const txt = document.getElementById('text-input').value;
+  if (!txt.trim()) { closeTextModal(); return; }
   const color = document.getElementById('text-color').value;
   const font = document.getElementById('text-font').value;
-
   const item = document.createElement('div');
   item.className = 'text-item';
-  item.textContent = textInput;
+  item.textContent = txt;
   item.style.color = color;
   item.style.fontFamily = font;
-
   const state = { x: 0, y: 0, scale: 1, rotate: 0 };
   item._state = state;
-
   const page = pages[currentPage].dom;
   page.appendChild(item);
-
-  // 要素がDOMに追加された直後にサイズを測り配置
   requestAnimationFrame(() => {
-    const cx = page.clientWidth / 2;
-    const cy = page.clientHeight / 2;
-    state.x = cx - (item.offsetWidth / 2) + (Math.random() - 0.5) * 40;
-    state.y = cy - (item.offsetHeight / 2) + (Math.random() - 0.5) * 40;
+    state.x = page.clientWidth / 2 - item.offsetWidth / 2 + (Math.random() - 0.5) * 40;
+    state.y = page.clientHeight / 2 - item.offsetHeight / 2 + (Math.random() - 0.5) * 40;
     applyTransform(item, state);
   });
-
-  // PC用・iPad用両方の操作を登録
   attachMouseHandlers(item, state);
   attachTouchHandlers(item, state);
-
   selectItem(item);
   closeTextModal();
 }
 
 // ========================
-// 変換
+// HTML保存・読み込み
+// ========================
+function saveHTML() {
+  const pagesData = pages.map(p => {
+    const dom = p.dom;
+    const bgImg = dom.querySelector('.page-bg img');
+    const bgSrc = bgImg.style.display !== 'none' ? bgImg.src : '';
+    const items = [];
+    dom.querySelectorAll('.img-item, .text-item').forEach(el => {
+      const s = el._state; if (!s) return;
+      if (el.classList.contains('img-item')) {
+        items.push({ type: 'image', src: el.querySelector('img').src, state: { ...s } });
+      } else {
+        items.push({ type: 'text', text: el.textContent, color: el.style.color, fontFamily: el.style.fontFamily, state: { ...s } });
+      }
+    });
+    return { bgSrc, items };
+  });
+  const json = JSON.stringify({ version: 1, currentPage, pagesData });
+  const escaped = json.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+  const html = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>キャンバスデータ</title>
+<script>window.CANVAS_DATA = ${escaped};<\/script>
+<style>body{font-family:sans-serif;padding:40px;color:#333;}
+.note{background:#f0f4ff;border-radius:12px;padding:20px;margin-top:16px;}</style>
+</head><body>
+<h2>キャンバス保存データ</h2>
+<p>このファイルを「HTMLを読み込む」で読み込むと、データが復元されます。</p>
+<div class="note"><b>スライド数：</b>${pagesData.length}<br><b>保存日時：</b>${new Date().toLocaleString('ja-JP')}</div>
+</body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `canvas_${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+}
+
+function triggerHTMLLoad() { document.getElementById('html-input').click(); }
+
+document.getElementById('html-input').addEventListener('change', (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const doc = new DOMParser().parseFromString(ev.target.result, 'text/html');
+      let data = null;
+      for (const s of doc.querySelectorAll('script')) {
+        const m = s.textContent.match(/window\.CANVAS_DATA\s*=\s*(\{[\s\S]*?\});\s*$/m);
+        if (m) { data = JSON.parse(m[1]); break; }
+      }
+      if (!data?.pagesData) { alert('読み込めないファイルです。'); return; }
+      loadCanvasData(data);
+    } catch(err) { alert('読み込みに失敗しました: ' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function loadCanvasData(data) {
+  pages.forEach(p => p.dom.remove());
+  pages = []; selectedItem = null;
+  data.pagesData.forEach(pd => {
+    const dom = createPageDOM();
+    pages.push({ dom });
+    if (pd.bgSrc) {
+      const bgImg = dom.querySelector('.page-bg img');
+      bgImg.src = pd.bgSrc; bgImg.style.display = 'block';
+    }
+    pd.items.forEach(item => {
+      const el = document.createElement('div');
+      const state = { ...item.state }; el._state = state;
+      if (item.type === 'image') {
+        el.className = 'img-item';
+        const img = document.createElement('img');
+        img.src = item.src; img.onload = () => applyTransform(el, state);
+        el.appendChild(img);
+      } else {
+        el.className = 'text-item';
+        el.textContent = item.text; el.style.color = item.color; el.style.fontFamily = item.fontFamily;
+      }
+      dom.appendChild(el);
+      attachMouseHandlers(el, state); attachTouchHandlers(el, state); applyTransform(el, state);
+    });
+  });
+  switchPage(Math.min(data.currentPage || 0, pages.length - 1));
+  renderThumbBar();
+  alert(`✅ ${pages.length}ページを読み込みました`);
+}
+
+// ========================
+// 変換・選択・削除
 // ========================
 function applyTransform(el, s) {
   el.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rotate}deg) scale(${s.scale})`;
 }
-
-// ========================
-// 選択・削除
-// ========================
 function selectItem(item) {
-  if (selectedItem && selectedItem !== item) {
-    selectedItem.classList.remove('selected');
-  }
-  selectedItem = item;
-  item.classList.add('selected');
-  item.style.zIndex = ++zCounter;
+  if (selectedItem && selectedItem !== item) selectedItem.classList.remove('selected');
+  selectedItem = item; item.classList.add('selected'); item.style.zIndex = ++zCounter;
 }
-
 function deselectAll() {
-  if (selectedItem) {
-    selectedItem.classList.remove('selected');
-    selectedItem = null;
-  }
+  if (selectedItem) { selectedItem.classList.remove('selected'); selectedItem = null; }
 }
-
 function deleteSelected() {
   if (!selectedItem) return;
-  selectedItem.parentNode.removeChild(selectedItem);
-  selectedItem = null;
-  closeSettings();
+  selectedItem.remove(); selectedItem = null;
 }
 
 // ========================
-// マウス操作 (画像・テキスト共通)
+// マウス操作
 // ========================
 function attachMouseHandlers(el, state) {
   el.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    selectItem(el);
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startStateX = state.x;
-    const startStateY = state.y;
-    const startRotate = state.rotate;
-
-    // アイテム中心座標（画面上）
+    e.preventDefault(); e.stopPropagation(); selectItem(el);
+    const sx = e.clientX, sy = e.clientY, ssx = state.x, ssy = state.y, sr = state.rotate;
     const rect = el.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    const isRotate = e.shiftKey || e.button === 2;
-
-    // 回転モード：マウスダウン時の角度を基準に
-    const startAngle = isRotate
-      ? Math.atan2(startY - centerY, startX - centerX) * 180 / Math.PI
-      : 0;
-
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    const isRot = e.shiftKey || e.button === 2;
+    const sa = isRot ? Math.atan2(sy - cy, sx - cx) * 180 / Math.PI : 0;
     const onMove = (me) => {
-      if (isRotate) {
-        // 中心からの角度差で回転
-        const curAngle = Math.atan2(me.clientY - centerY, me.clientX - centerX) * 180 / Math.PI;
-        state.rotate = startRotate + (curAngle - startAngle);
-      } else {
-        state.x = startStateX + (me.clientX - startX);
-        state.y = startStateY + (me.clientY - startY);
-      }
+      if (isRot) {
+        state.rotate = sr + (Math.atan2(me.clientY - cy, me.clientX - cx) * 180 / Math.PI - sa);
+      } else { state.x = ssx + (me.clientX - sx); state.y = ssy + (me.clientY - sy); }
       applyTransform(el, state);
     };
-
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
   });
-
-  // 右クリックメニュー抑制
-  el.addEventListener('contextmenu', (e) => e.preventDefault());
-
-  // ホイールで拡大縮小
+  el.addEventListener('contextmenu', e => e.preventDefault());
   el.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    selectItem(el);
-    const delta = e.deltaY > 0 ? 0.92 : 1.09;
-    state.scale = Math.max(0.05, Math.min(20, state.scale * delta));
+    e.preventDefault(); e.stopPropagation(); selectItem(el);
+    state.scale = Math.max(0.05, Math.min(20, state.scale * (e.deltaY > 0 ? 0.92 : 1.09)));
     applyTransform(el, state);
   }, { passive: false });
 }
 
 // ========================
-// タッチ操作 (iPad・スマホ用)
+// タッチ操作（スワイプ＋アイテム操作）
 // ========================
+let swipeStartX = null, swipeStartY = null, swipeMoved = false;
+
+canvasWrap.addEventListener('touchstart', (e) => {
+  if (e.target.closest('.img-item, .text-item')) return;
+  if (e.touches.length === 1) { swipeStartX = e.touches[0].clientX; swipeStartY = e.touches[0].clientY; swipeMoved = false; }
+}, { passive: true });
+
+canvasWrap.addEventListener('touchmove', (e) => {
+  if (e.target.closest('.img-item, .text-item')) return;
+  if (swipeStartX === null || e.touches.length !== 1) return;
+  if (Math.abs(e.touches[0].clientX - swipeStartX) > 10 || Math.abs(e.touches[0].clientY - swipeStartY) > 10) swipeMoved = true;
+}, { passive: true });
+
+canvasWrap.addEventListener('touchend', (e) => {
+  if (e.target.closest('.img-item, .text-item')) return;
+  if (swipeStartX === null || !swipeMoved) { swipeStartX = null; return; }
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const dy = Math.abs(e.changedTouches[0].clientY - swipeStartY);
+  if (Math.abs(dx) > 50 && dy < 80) goPage(dx < 0 ? 1 : -1);
+  swipeStartX = null; swipeMoved = false;
+}, { passive: true });
+
 function attachTouchHandlers(el, state) {
-  let touches = {};
-  let lastDist = null;
-  let lastAngle = null;
-  let lastMidX = null;
-  let lastMidY = null;
-  let lastTap = 0;
-
+  let touches = {}, lastDist = null, lastAngle = null, lastMidX = null, lastMidY = null, lastTap = 0;
   el.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    selectItem(el);
-
+    e.preventDefault(); e.stopPropagation(); selectItem(el);
     const now = Date.now();
     if (now - lastTap < 300) { lastTap = 0; return; }
     lastTap = now;
-
-    Array.from(e.changedTouches).forEach(t => {
-      touches[t.identifier] = { x: t.clientX, y: t.clientY };
-    });
-
+    Array.from(e.changedTouches).forEach(t => { touches[t.identifier] = { x: t.clientX, y: t.clientY }; });
     const ids = Object.keys(touches);
     if (ids.length >= 2) {
       const [a, b] = ids.slice(0, 2).map(id => touches[id]);
-      lastDist = vDist(a, b);
-      lastAngle = vAngle(a, b);
-      lastMidX = (a.x + b.x) / 2;
-      lastMidY = (a.y + b.y) / 2;
+      lastDist = vDist(a, b); lastAngle = vAngle(a, b);
+      lastMidX = (a.x + b.x) / 2; lastMidY = (a.y + b.y) / 2;
     }
   }, { passive: false });
-
   el.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const prevPositions = {};
-    Object.keys(touches).forEach(id => { prevPositions[id] = { ...touches[id] }; });
-
-    Array.from(e.changedTouches).forEach(t => {
-      touches[t.identifier] = { x: t.clientX, y: t.clientY };
-    });
-
+    e.preventDefault(); e.stopPropagation();
+    const prev = {}; Object.keys(touches).forEach(id => { prev[id] = { ...touches[id] }; });
+    Array.from(e.changedTouches).forEach(t => { touches[t.identifier] = { x: t.clientX, y: t.clientY }; });
     const ids = Object.keys(touches);
-
     if (ids.length === 1) {
-      const id = ids[0];
-      const prev = prevPositions[id];
-      const cur = touches[id];
-      if (prev) {
-        state.x += cur.x - prev.x;
-        state.y += cur.y - prev.y;
-      }
+      const p = prev[ids[0]], c = touches[ids[0]];
+      if (p) { state.x += c.x - p.x; state.y += c.y - p.y; }
     } else if (ids.length >= 2) {
       const [a, b] = ids.slice(0, 2).map(id => touches[id]);
-      const curDist = vDist(a, b);
-      const curAngle = vAngle(a, b);
-      const curMidX = (a.x + b.x) / 2;
-      const curMidY = (a.y + b.y) / 2;
-
-      if (lastDist !== null) {
-        state.scale = Math.max(0.05, Math.min(20, state.scale * (curDist / lastDist)));
-      }
-      if (lastAngle !== null) {
-        state.rotate += curAngle - lastAngle;
-      }
-      if (lastMidX !== null) {
-        state.x += curMidX - lastMidX;
-        state.y += curMidY - lastMidY;
-      }
-
-      lastDist = curDist;
-      lastAngle = curAngle;
-      lastMidX = curMidX;
-      lastMidY = curMidY;
+      const cd = vDist(a, b), ca = vAngle(a, b), cmx = (a.x + b.x) / 2, cmy = (a.y + b.y) / 2;
+      if (lastDist) state.scale = Math.max(0.05, Math.min(20, state.scale * (cd / lastDist)));
+      if (lastAngle !== null) state.rotate += ca - lastAngle;
+      if (lastMidX !== null) { state.x += cmx - lastMidX; state.y += cmy - lastMidY; }
+      lastDist = cd; lastAngle = ca; lastMidX = cmx; lastMidY = cmy;
     }
-
     applyTransform(el, state);
   }, { passive: false });
-
   el.addEventListener('touchend', (e) => {
     e.preventDefault();
     Array.from(e.changedTouches).forEach(t => { delete touches[t.identifier]; });
-
-    const ids = Object.keys(touches);
-    if (ids.length < 2) {
-      lastDist = null; lastAngle = null;
-      lastMidX = null; lastMidY = null;
-    }
+    if (Object.keys(touches).length < 2) { lastDist = null; lastAngle = null; lastMidX = null; lastMidY = null; }
   }, { passive: false });
 }
 
 function vDist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
 function vAngle(a, b) { return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; }
 
-// 誤作動防止（ダブルタップズーム無効化など）
-document.addEventListener('touchstart', (e) => {
-  if (e.touches.length > 1) e.preventDefault();
-}, { passive: false });
-
+document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 let lastDocTouch = 0;
-document.addEventListener('touchend', (e) => {
-  const now = Date.now();
-  if (now - lastDocTouch < 300) e.preventDefault();
-  lastDocTouch = now;
+document.addEventListener('touchend', e => {
+  const now = Date.now(); if (now - lastDocTouch < 300) e.preventDefault(); lastDocTouch = now;
 }, { passive: false });
 
-
-// キーボードショートカット
 document.addEventListener('keydown', (e) => {
-  // Delete / Backspace で選択削除
-  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItem) {
-    // input や textarea にフォーカスがある場合は削除を発動させない
-    const activeTag = document.activeElement.tagName;
-    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
-    deleteSelected();
-  }
-
-  // 矢印キーで微調整移動
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItem) deleteSelected();
   if (selectedItem && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
-    const s = selectedItem._state;
-    const step = e.shiftKey ? 10 : 1;
+    const s = selectedItem._state, step = e.shiftKey ? 10 : 1;
     if (e.key === 'ArrowLeft')  s.x -= step;
     if (e.key === 'ArrowRight') s.x += step;
     if (e.key === 'ArrowUp')    s.y -= step;
     if (e.key === 'ArrowDown')  s.y += step;
-    applyTransform(selectedItem, s);
-    e.preventDefault();
+    applyTransform(selectedItem, s); e.preventDefault();
   }
-
-  // [ / ] で回転
   if (selectedItem && (e.key === '[' || e.key === ']')) {
     const s = selectedItem._state;
-    const step = e.shiftKey ? 15 : 5;
-    s.rotate += e.key === ']' ? step : -step;
-    applyTransform(selectedItem, s);
-    e.preventDefault();
+    s.rotate += e.key === ']' ? (e.shiftKey ? 15 : 5) : (e.shiftKey ? -15 : -5);
+    applyTransform(selectedItem, s); e.preventDefault();
   }
+  if (e.key === 'Escape' && settingsOpen) closeSettings();
 });
 </script>
 </body>
