@@ -643,10 +643,11 @@ document.getElementById('bg-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const bgImg = pages[currentPage].dom.querySelector('.page-bg img');
-  bgImg.src = URL.createObjectURL(file);
+  const url = URL.createObjectURL(file);
+  bgImg.onload = () => { renderThumbBar(); };
+  bgImg.src = url;
   bgImg.style.display = 'block';
   e.target.value = '';
-  // 設定に留まる。サムネイル反映は「スライドをみる」時
 });
 
 function removeBg() {
@@ -676,6 +677,7 @@ function addImageItem(file) {
     state.x = page.clientWidth / 2 + (Math.random() - 0.5) * 100 - Math.min(img.naturalWidth, 300) / 2;
     state.y = page.clientHeight / 2 + (Math.random() - 0.5) * 100 - Math.min(img.naturalHeight, 300) / 2;
     applyTransform(item, state);
+    renderThumbBar();
   };
   item.appendChild(img);
   pages[currentPage].dom.appendChild(item);
@@ -841,11 +843,20 @@ function attachMouseHandlers(el, state) {
     const sa = isRot ? Math.atan2(sy - cy, sx - cx) * 180 / Math.PI : 0;
     const onMove = (me) => {
       if (isRot) {
-        state.rotate = sr + (Math.atan2(me.clientY - cy, me.clientX - cx) * 180 / Math.PI - sa);
-      } else { state.x = ssx + (me.clientX - sx); state.y = ssy + (me.clientY - sy); }
+        // 回転のみ、位置は変えない
+        const ca = Math.atan2(me.clientY - cy, me.clientX - cx) * 180 / Math.PI;
+        state.rotate = sr + (ca - sa);
+      } else {
+        state.x = ssx + (me.clientX - sx);
+        state.y = ssy + (me.clientY - sy);
+      }
       applyTransform(el, state);
     };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    if (isRot) { el.style.cursor = 'crosshair'; document.body.style.cursor = 'crosshair'; }
+    const onUp = () => {
+      el.style.cursor = ''; document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+    };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
   });
   el.addEventListener('contextmenu', e => e.preventDefault());
