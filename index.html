@@ -38,6 +38,15 @@
   }
   #gear-btn:hover { opacity: 0.8; transform: rotate(30deg); }
 
+  #help-btn {
+    position: fixed; top: 13px; left: 60px; z-index: 500;
+    background: none; border: none; font-size: 20px;
+    cursor: pointer; opacity: 0.4; width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s;
+  }
+  #help-btn:hover { opacity: 0.8; }
+
   #page-indicator {
     position: fixed; top: 18px; right: 14px; z-index: 500;
     font-size: 13px; color: rgba(0,0,0,0.28); pointer-events: none;
@@ -111,6 +120,15 @@
   #view-canvas-btn:active { transform: scale(0.96); }
 
   #settings-label { font-size: 14px; color: var(--muted); font-weight: bold; }
+
+  #settings-help-btn {
+    margin-left: auto;
+    background: none; border: 1px solid var(--border); border-radius: 16px;
+    font-size: 13px; color: var(--muted); padding: 6px 12px;
+    cursor: pointer; display: flex; align-items: center; gap: 5px;
+    font-family: inherit; transition: background 0.12s, border-color 0.12s;
+  }
+  #settings-help-btn:hover { background: #f5f7fb; border-color: #c8d0de; }
 
   /* サムネイルバー */
   #thumb-bar {
@@ -242,6 +260,30 @@
   .tm-btn-primary { background: var(--accent); color: #fff; }
   .tm-btn-primary:hover { background: #3a68e0; }
 
+  /* ヘルプモーダル */
+  #help-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 4000; display: none;
+    align-items: center; justify-content: center; backdrop-filter: blur(4px);
+  }
+  #help-modal-overlay.open { display: flex; }
+  #help-modal {
+    background: #fff; padding: 26px; border-radius: 18px;
+    width: 90%; max-width: 480px; max-height: 82vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.25);
+  }
+  #help-modal h3 { font-size: 18px; color: var(--text); }
+  #help-modal .help-intro { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  #help-modal .help-section { display: flex; flex-direction: column; gap: 3px; }
+  #help-modal .help-section h4 { font-size: 13px; color: var(--accent); font-weight: bold; }
+  #help-modal .help-section p { font-size: 13px; color: var(--text); line-height: 1.65; }
+  #help-modal .help-check {
+    display: flex; align-items: center; gap: 6px; font-size: 13px;
+    color: var(--muted); padding-top: 4px; border-top: 1px solid var(--border);
+  }
+  #help-modal .help-actions { display: flex; justify-content: flex-end; }
+
   #bg-input, #img-input, #html-input { display: none; }
 </style>
 </head>
@@ -249,6 +291,7 @@
 
 <div id="canvas-view">
   <button id="gear-btn" onclick="openSettings()" title="設定">⚙️</button>
+  <button id="help-btn" onclick="openHelp()" title="使い方">❓</button>
   <div id="page-indicator">1 / 1</div>
   <div id="canvas-wrap"></div>
   <button id="nav-prev" onclick="goPage(-1)">◁</button>
@@ -259,6 +302,7 @@
   <div id="settings-header">
     <button id="view-canvas-btn" onclick="closeSettings()">▶ スライドをみる</button>
     <span id="settings-label">設定</span>
+    <button id="settings-help-btn" onclick="openHelp()">❓ 使い方</button>
   </div>
 
   <div id="thumb-bar"></div>
@@ -350,6 +394,39 @@
   </div>
 </div>
 
+<div id="help-modal-overlay">
+  <div id="help-modal">
+    <h3>📋 使い方</h3>
+    <p class="help-intro">画像やテキストを自由に配置して、スライド形式のキャンバスを作成できます。</p>
+    <div class="help-section">
+      <h4>① 設定パネルを開く</h4>
+      <p>左上の⚙️アイコンをタップすると設定パネルが開きます。ここでスライドの追加・削除、背景や画像・テキストの配置、ファイルの保存・読み込みを行います。</p>
+    </div>
+    <div class="help-section">
+      <h4>② スライドの管理</h4>
+      <p>「＋追加」で新しいスライドを作成いたします。上のサムネイル一覧はドラッグして並び替えられます。「削除」で現在のスライドを消去いたします。</p>
+    </div>
+    <div class="help-section">
+      <h4>③ 背景・コンテンツの配置</h4>
+      <p>「背景を設定」でスライド全体に画像を敷きます。「画像を追加」「テキストを追加」でパーツを置き、キャンバス上で自由に動かせます。</p>
+    </div>
+    <div class="help-section">
+      <h4>④ アイテムの操作</h4>
+      <p>ドラッグで移動、マウスホイールやピンチ操作で拡大縮小、Shift+ドラッグまたは2本指の回転操作で向きを変えられます。選択してDeleteキー、または「選択を削除」で消去いたします。</p>
+    </div>
+    <div class="help-section">
+      <h4>⑤ ページ移動・保存</h4>
+      <p>左右の矢印ボタンやスワイプでページを移動いたします。「HTMLで保存」で作成データをファイルとして保存し、「HTMLを読み込む」でいつでも復元いたします。</p>
+    </div>
+    <label class="help-check">
+      <input type="checkbox" id="help-dont-show"> 次回から表示しない
+    </label>
+    <div class="help-actions">
+      <button class="tm-btn tm-btn-primary" onclick="closeHelp()">はじめる</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="bg-input" accept="image/*">
 <input type="file" id="img-input" accept="image/*" multiple>
 <input type="file" id="html-input" accept=".html">
@@ -369,6 +446,20 @@ const canvasWrap = document.getElementById('canvas-wrap');
 const settingsView = document.getElementById('settings-view');
 const pageIndicator = document.getElementById('page-indicator');
 const thumbBar = document.getElementById('thumb-bar');
+
+// ========================
+// ヘルプモーダル
+// ========================
+function openHelp() {
+  document.getElementById('help-modal-overlay').classList.add('open');
+}
+function closeHelp() {
+  const dontShow = document.getElementById('help-dont-show').checked;
+  if (dontShow) {
+    try { localStorage.setItem('canvasHelpSeen', '1'); } catch(e) {}
+  }
+  document.getElementById('help-modal-overlay').classList.remove('open');
+}
 
 // ========================
 // 設定パネル
@@ -647,6 +738,9 @@ function deletePage() {
 
 addPage();
 openSettings();
+try {
+  if (!localStorage.getItem('canvasHelpSeen')) openHelp();
+} catch(e) { openHelp(); }
 
 // ========================
 // 背景
